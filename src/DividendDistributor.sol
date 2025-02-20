@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
+import "./interfaces/ISuccessPool.sol";
+
 /**
  * @title DividendDistributor
  * @dev Handles encrypted dividend distribution to pool members
@@ -47,8 +49,12 @@ contract DividendDistributor {
     error Unauthorized();
     error PrecisionError();
     
+    // Add ISuccessPool reference
+    ISuccessPool public immutable pool;
+    
     constructor(address _poolContract) {
         require(_poolContract != address(0), "Invalid pool address");
+        pool = ISuccessPool(_poolContract);
         poolContract = _poolContract;
         admin = msg.sender;
     }
@@ -110,11 +116,13 @@ contract DividendDistributor {
         require(uint256(percentage) >= MIN_COMMITMENT_PERCENTAGE, "Commitment too low");
         require(uint256(percentage) <= MAX_COMMITMENT_PERCENTAGE, "Commitment too high");
         
-        // Ensure commitment hasn't been updated recently
-        require(
-            block.timestamp >= lastCommitmentUpdate[member] + COMMITMENT_LOCK_PERIOD,
-            "Commitment locked"
-        );
+        // Only enforce commitment lock after join window
+        if (block.timestamp > pool.joinWindowEnds()) {
+            require(
+                block.timestamp >= lastCommitmentUpdate[member] + COMMITMENT_LOCK_PERIOD,
+                "Commitment locked"
+            );
+        }
         
         // Update state following checks-effects-interactions
         suint256 oldPercentage = commitmentPercentages[member];

@@ -6,9 +6,11 @@ import {DividendDistributor} from "../src/DividendDistributor.sol";
 
 contract MockPool {
     DividendDistributor public distributor;
+    uint256 public joinWindowEnds;  // Add this to implement ISuccessPool interface
     
     constructor(DividendDistributor _distributor) {
         distributor = _distributor;
+        joinWindowEnds = block.timestamp + 30 days;  // Set join window end time
     }
     
     function updateCommitment(address member, suint256 percentage) external {
@@ -25,6 +27,11 @@ contract MockPool {
 
     function setDistributor(DividendDistributor _distributor) external {
         distributor = _distributor;
+    }
+
+    // Add function to modify join window end time for testing
+    function setJoinWindowEnds(uint256 _joinWindowEnds) external {
+        joinWindowEnds = _joinWindowEnds;
     }
 }
 

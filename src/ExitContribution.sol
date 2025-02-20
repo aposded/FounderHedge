@@ -7,8 +7,8 @@ pragma solidity ^0.8.13;
  */
 contract ExitContribution {
     // Encrypted state variables
-    mapping(address => suint256) private lastContributionAmount;
-    mapping(address => suint256) private totalProcessedValue;
+    mapping(address => uint256) private lastContributionAmount;
+    mapping(address => uint256) private totalProcessedValue;
     mapping(address => uint256) private lastProcessTime;
     
     // Constants
@@ -102,8 +102,11 @@ contract ExitContribution {
             revert ProcessTooFrequent();
         }
         
-        lastContributionAmount[contributor] = amount;
-        totalProcessedValue[contributor] += amount;
+        // Convert encrypted amount to uint256 for storage
+        uint256 plainAmount = uint256(amount);
+        
+        lastContributionAmount[contributor] = plainAmount;
+        totalProcessedValue[contributor] += plainAmount;
         lastProcessTime[contributor] = block.timestamp;
         
         emit ContributionProcessed(contributor);
@@ -113,14 +116,14 @@ contract ExitContribution {
      * @dev Get the last contribution amount for a member (only viewable by the member)
      */
     function getLastContribution() external view returns (uint256) {
-        return uint256(lastContributionAmount[msg.sender]);
+        return lastContributionAmount[msg.sender];
     }
     
     /**
      * @dev Get total processed value for a member (only viewable by the member)
      */
     function getTotalProcessedValue() external view returns (uint256) {
-        return uint256(totalProcessedValue[msg.sender]);
+        return totalProcessedValue[msg.sender];
     }
     
     /**

@@ -180,9 +180,9 @@ contract DividendDistributor {
         require(uint256(amount) > 0, "No dividends to claim");
         require(uint256(commitmentPercentages[member]) > 0, "Member has no commitment");
         
-        // Safety checks
-        require(uint256(amount) <= uint256(pendingDividends[member]), "Insufficient dividends");
+        // Safety checks - switch order to check max amount first
         if (uint256(amount) > MAX_CLAIM_AMOUNT) revert ClaimAmountTooLarge();
+        require(uint256(amount) <= uint256(pendingDividends[member]), "Insufficient dividends");
         
         // Update state before external interactions
         pendingDividends[member] -= amount;

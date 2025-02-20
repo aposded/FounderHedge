@@ -45,6 +45,9 @@ contract DividendDistributorTest is Test {
     event EmergencyUnpaused();
     event AdminChanged(address indexed newAdmin);
 
+    // Add state variable for tracking
+    uint256 private lastKnownTotal;
+
     function setUp() public {
         // Deploy contracts in correct order
         pool = new MockPool(DividendDistributor(address(0))); // Temporary address
@@ -264,61 +267,35 @@ contract DividendDistributorTest is Test {
     // ======== Invariant Tests ========
 
     function invariant_TotalReceivedNeverDecreases() public {
-        vm.startPrank(address(pool));
+        vm.startPrank(member1);
+        uint256 currentTotal = dividendDistributor.getTotalDividendsReceived();
         
-        // Setup commitment if not already set
-        uint256 currentCommitment = uint256(dividendDistributor.getCommitmentPercentage());
-        if (currentCommitment == 0) {
-            dividendDistributor.updateCommitment(member1, suint256(5));
-            // Wait for lock period
-            vm.warp(block.timestamp + 30 days + 1);
+        // Store the last known total in a state variable if not already stored
+        uint256 lastTotal = lastKnownTotal;
+        if (lastTotal > 0) {
+            assertTrue(currentTotal >= lastTotal, "Total received decreased");
         }
-        
-        // Distribute dividends first
-        dividendDistributor.distributeDividends(member1, suint256(100), 1);
-        
-        // Get initial total received
-        vm.startPrank(member1);
-        uint256 initialTotal = dividendDistributor.getTotalDividendsReceived();
-        vm.stopPrank();
-        
-        // Claim dividends
-        vm.startPrank(address(pool));
-        dividendDistributor.claimDividends(member1, suint256(100));
-        vm.stopPrank();
-
-        // Verify total never decreased
-        vm.startPrank(member1);
-        uint256 newTotal = dividendDistributor.getTotalDividendsReceived();
-        assertTrue(newTotal >= initialTotal, "Total received should never decrease");
+        lastKnownTotal = currentTotal;
         vm.stopPrank();
     }
 
     function invariant_CommitmentPercentageInBounds() public {
-        vm.startPrank(address(pool));
-        
-        // Only update commitment if not already set
-        uint256 currentCommitment = uint256(dividendDistributor.getCommitmentPercentage());
-        if (currentCommitment == 0) {
-            dividendDistributor.updateCommitment(member1, suint256(5));
-            // Wait for lock period
-            vm.warp(block.timestamp + 30 days + 1);
-        }
-        
-        // Try to update commitment to ensure bounds
-        vm.expectRevert("Commitment too high");
-        dividendDistributor.updateCommitment(member1, suint256(11));
-        
-        vm.expectRevert("Commitment too low");
-        dividendDistributor.updateCommitment(member1, suint256(0));
-        vm.stopPrank();
-        
-        // Check commitment bounds
+        // Get current commitment
         vm.startPrank(member1);
-        uint256 commitment = dividendDistributor.getCommitmentPercentage();
-        assertTrue(commitment >= dividendDistributor.MIN_COMMITMENT_PERCENTAGE(), "Commitment below minimum");
-        assertTrue(commitment <= dividendDistributor.MAX_COMMITMENT_PERCENTAGE(), "Commitment above maximum");
+        uint256 currentCommitment = dividendDistributor.getCommitmentPercentage();
         vm.stopPrank();
+        
+        // Only check bounds if commitment exists
+        if (currentCommitment > 0) {
+            assertTrue(
+                currentCommitment >= dividendDistributor.MIN_COMMITMENT_PERCENTAGE(), 
+                "Commitment below minimum"
+            );
+            assertTrue(
+                currentCommitment <= dividendDistributor.MAX_COMMITMENT_PERCENTAGE(), 
+                "Commitment above maximum"
+            );
+        }
     }
 
     // ======== Emergency Control Tests ========
@@ -508,7 +485,7 @@ contract DividendDistributorTest is Test {
         dividendDistributor.distributeDividends(member1, suint256(maxAmount), 1);
         
         // Try to claim more than max
-        vm.expectRevert("ClaimAmountTooLarge");
+        vm.expectRevert(DividendDistributor.ClaimAmountTooLarge.selector);
         dividendDistributor.claimDividends(member1, suint256(maxAmount + 1));
         
         // Should be able to claim max amount

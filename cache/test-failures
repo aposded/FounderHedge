@@ -1,1 +1,1 @@
-invariant_CommitmentPercentageInBounds|invariant_TotalReceivedNeverDecreases|test_MaxClaimAmount|test_MaxContributionLimit
+test_MaxClaimAmount

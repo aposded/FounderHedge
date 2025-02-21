@@ -3,11 +3,13 @@ pragma solidity ^0.8.13;
 
 import "./ExitContribution.sol";
 import "./DividendDistributor.sol";
-import "./Governance.sol";
 
 /**
  * @title SuccessPool
- * @dev Manages an encrypted success-sharing pool for startup founders with a fixed joining window
+ * @dev Manages an encrypted success-sharing pool for startup founders with fixed rules:
+ *      - 1-10% commitment range
+ *      - 90-day minimum membership
+ *      - 7-day contribution interval
  */
 contract SuccessPool {
     // Encrypted state variables
@@ -23,8 +25,6 @@ contract SuccessPool {
     uint256 public constant MIN_MEMBERSHIP_PERIOD = 90 days;    // Minimum time before leaving
     uint256 public constant MAX_EXIT_VALUE = 1e27;             // Maximum exit value
     uint256 public constant MIN_CONTRIBUTION_INTERVAL = 7 days; // Minimum time between contributions
-    uint256 public constant JOIN_WINDOW_DURATION = 30 days;    // Window for joining the pool
-    uint256 public immutable joinWindowEnds;                   // Timestamp when joining window ends
     uint256 public memberCount;                                // Number of active members
     
     // Emergency controls
@@ -34,7 +34,6 @@ contract SuccessPool {
     // Contract references
     ExitContribution public exitContribution;
     DividendDistributor public dividendDistributor;
-    Governance public governance;
     
     // Events
     event MemberJoined(address indexed member);
@@ -45,31 +44,22 @@ contract SuccessPool {
     event EmergencyPaused();
     event EmergencyUnpaused();
     event AdminChanged(address indexed newAdmin);
-    event JoinWindowClosed();
     
     // Errors
     error ContractPaused();
     error Unauthorized();
     error MinMembershipPeriodNotMet();
     error ContributionTooFrequent();
-    error JoinWindowExpired();
-    error JoinWindowStillOpen();
     
     constructor(
         address _exitContribution,
-        address _dividendDistributor,
-        address _governance
+        address _dividendDistributor
     ) {
         require(_exitContribution != address(0), "Invalid exit contribution address");
-        require(_governance != address(0), "Invalid governance address");
         
         exitContribution = ExitContribution(_exitContribution);
         dividendDistributor = DividendDistributor(_dividendDistributor);
-        governance = Governance(_governance);
         admin = msg.sender;
-        
-        // Set join window end time
-        joinWindowEnds = block.timestamp + JOIN_WINDOW_DURATION;
     }
     
     modifier whenNotPaused() {
@@ -79,16 +69,6 @@ contract SuccessPool {
     
     modifier onlyAdmin() {
         if (msg.sender != admin) revert Unauthorized();
-        _;
-    }
-    
-    modifier duringJoinWindow() {
-        if (block.timestamp > joinWindowEnds) revert JoinWindowExpired();
-        _;
-    }
-    
-    modifier afterJoinWindow() {
-        if (block.timestamp <= joinWindowEnds) revert JoinWindowStillOpen();
         _;
     }
     
@@ -129,34 +109,32 @@ contract SuccessPool {
     }
     
     /**
-     * @dev Join the success pool with a committed percentage (only during join window)
-     * @param percentage The percentage of future exits to commit (encrypted)
+     * @dev Join the success pool with a committed percentage
+     * @param commitmentPercentage The percentage of future exits to commit (encrypted)
      */
-    function joinPool(suint256 percentage) external whenNotPaused duringJoinWindow {
+    function joinPool(suint256 commitmentPercentage) external payable {
         require(!bool(isActiveMember[msg.sender]), "Already a member");
-        require(uint256(percentage) >= MIN_COMMITMENT_PERCENTAGE && 
-                uint256(percentage) <= MAX_COMMITMENT_PERCENTAGE, 
+        require(uint256(commitmentPercentage) >= MIN_COMMITMENT_PERCENTAGE && 
+                uint256(commitmentPercentage) <= MAX_COMMITMENT_PERCENTAGE, 
                 "Invalid commitment percentage");
         
-        commitmentPercentages[msg.sender] = percentage;
+        // Set member data
         isActiveMember[msg.sender] = sbool(true);
-        memberCount++;
         memberJoinTime[msg.sender] = block.timestamp;
+        commitmentPercentages[msg.sender] = commitmentPercentage;
+        memberCount++;
         
         // Register commitment in DividendDistributor
-        dividendDistributor.updateCommitment(msg.sender, percentage);
-        
-        // Set initial voting power in governance
-        governance.setVotingPower(msg.sender, percentage);
+        dividendDistributor.updateCommitment(msg.sender, commitmentPercentage);
         
         emit MemberJoined(msg.sender);
     }
     
     /**
-     * @dev Submit an exit contribution to the pool (only after join window closes)
+     * @dev Submit an exit contribution to the pool
      * @param exitValue The encrypted exit value
      */
-    function contributeExit(suint256 exitValue) external whenNotPaused afterJoinWindow {
+    function contributeExit(suint256 exitValue) external payable whenNotPaused {
         require(bool(isActiveMember[msg.sender]), "Not a member");
         require(uint256(exitValue) <= MAX_EXIT_VALUE, "Exit value too large");
         
@@ -175,21 +153,18 @@ contract SuccessPool {
     /**
      * @dev Leave the success pool (only after minimum membership period)
      */
-    function leavePool() external whenNotPaused afterJoinWindow {
+    function leavePool() external whenNotPaused {
         require(bool(isActiveMember[msg.sender]), "Not a member");
         require(uint256(totalContributed[msg.sender]) > 0, "Must contribute before leaving");
         
-        // Ensure minimum membership period from join window end
+        // Ensure minimum membership period from join time
         require(
-            block.timestamp >= joinWindowEnds + MIN_MEMBERSHIP_PERIOD,
+            block.timestamp >= memberJoinTime[msg.sender] + MIN_MEMBERSHIP_PERIOD,
             "Minimum membership period not met"
         );
         
         isActiveMember[msg.sender] = sbool(false);
         memberCount--;
-        
-        // Reset voting power in governance
-        governance.setVotingPower(msg.sender, suint256(0));
         
         emit MemberLeft(msg.sender);
     }

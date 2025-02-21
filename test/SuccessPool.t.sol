@@ -5,13 +5,11 @@ import {Test, console} from "forge-std/Test.sol";
 import {SuccessPool} from "../src/SuccessPool.sol";
 import {ExitContribution} from "../src/ExitContribution.sol";
 import {DividendDistributor} from "../src/DividendDistributor.sol";
-import {Governance} from "../src/Governance.sol";
 
 contract SuccessPoolTest is Test {
     SuccessPool public pool;
     ExitContribution public exitContribution;
     DividendDistributor public dividendDistributor;
-    Governance public governance;
 
     address public founder1 = address(0x1);
     address public founder2 = address(0x2);
@@ -33,14 +31,12 @@ contract SuccessPoolTest is Test {
     function setUp() public {
         // Deploy all contracts
         exitContribution = new ExitContribution();
-        governance = new Governance();
         admin = address(this);
         
         // Deploy pool first since it will be the authorized contract
         pool = new SuccessPool(
             address(exitContribution),
-            address(0), // Temporary address for DividendDistributor
-            address(governance)
+            address(0) // Temporary address for DividendDistributor
         );
         
         // Deploy DividendDistributor with pool's address
@@ -74,20 +70,7 @@ contract SuccessPoolTest is Test {
         vm.stopPrank();
     }
 
-    function test_JoinPool_AfterWindow() public {
-        // Move past join window
-        vm.warp(block.timestamp + pool.JOIN_WINDOW_DURATION() + 1);
-        
-        vm.startPrank(founder1);
-        vm.expectRevert(SuccessPool.JoinWindowExpired.selector);
-        pool.joinPool(suint256(5));
-        vm.stopPrank();
-    }
-
     function test_JoinPool_InvalidPercentage() public {
-        // Make sure we're in the join window
-        assertTrue(block.timestamp <= pool.joinWindowEnds(), "Should be in join window");
-        
         vm.startPrank(founder1);
         vm.expectRevert("Invalid commitment percentage");
         pool.joinPool(suint256(0));
@@ -111,9 +94,6 @@ contract SuccessPoolTest is Test {
         pool.joinPool(suint256(5));
         vm.stopPrank();
 
-        // Move past join window
-        vm.warp(block.timestamp + pool.JOIN_WINDOW_DURATION() + 1);
-
         // Contribute exit worth 1000 units (should contribute 50 units to pool)
         vm.startPrank(founder1);
         pool.contributeExit(suint256(1000));
@@ -123,19 +103,7 @@ contract SuccessPoolTest is Test {
         vm.stopPrank();
     }
 
-    function test_ContributeExit_DuringWindow() public {
-        vm.startPrank(founder1);
-        pool.joinPool(suint256(5));
-        
-        vm.expectRevert(SuccessPool.JoinWindowStillOpen.selector);
-        pool.contributeExit(suint256(1000));
-        vm.stopPrank();
-    }
-
     function test_ContributeExit_NotMember() public {
-        // Move past join window
-        vm.warp(block.timestamp + pool.JOIN_WINDOW_DURATION() + 1);
-
         vm.startPrank(founder1);
         vm.expectRevert("Not a member");
         pool.contributeExit(suint256(1000));
@@ -146,15 +114,9 @@ contract SuccessPoolTest is Test {
         // Setup: Join and contribute
         vm.startPrank(founder1);
         pool.joinPool(suint256(5));
-        vm.stopPrank();
-
-        // Move past join window
-        vm.warp(block.timestamp + pool.JOIN_WINDOW_DURATION() + 1);
-        
-        vm.startPrank(founder1);
         pool.contributeExit(suint256(1000));
         
-        // Wait for minimum membership period after join window
+        // Wait for minimum membership period
         vm.warp(block.timestamp + pool.MIN_MEMBERSHIP_PERIOD());
         
         uint256 initialMemberCount = pool.memberCount();
@@ -164,25 +126,10 @@ contract SuccessPoolTest is Test {
         vm.stopPrank();
     }
 
-    function test_LeavePool_DuringWindow() public {
-        vm.startPrank(founder1);
-        pool.joinPool(suint256(5));
-        
-        vm.expectRevert(SuccessPool.JoinWindowStillOpen.selector);
-        pool.leavePool();
-        vm.stopPrank();
-    }
-
     function test_LeavePool_BeforeMinPeriod() public {
         // Setup: Join and contribute
         vm.startPrank(founder1);
         pool.joinPool(suint256(5));
-        vm.stopPrank();
-
-        // Move past join window
-        vm.warp(block.timestamp + pool.JOIN_WINDOW_DURATION() + 1);
-        
-        vm.startPrank(founder1);
         pool.contributeExit(suint256(1000));
         
         vm.expectRevert("Minimum membership period not met");
@@ -191,8 +138,8 @@ contract SuccessPoolTest is Test {
     }
 
     function test_LeavePool_NotMember() public {
-        // Move past join window and minimum period
-        vm.warp(block.timestamp + pool.JOIN_WINDOW_DURATION() + pool.MIN_MEMBERSHIP_PERIOD() + 1);
+        // Move past minimum period
+        vm.warp(block.timestamp + pool.MIN_MEMBERSHIP_PERIOD());
 
         vm.startPrank(founder1);
         vm.expectRevert("Not a member");
@@ -203,12 +150,10 @@ contract SuccessPoolTest is Test {
     function test_LeavePool_NoContribution() public {
         vm.startPrank(founder1);
         pool.joinPool(suint256(5));
-        vm.stopPrank();
 
-        // Move past join window and minimum period
-        vm.warp(block.timestamp + pool.JOIN_WINDOW_DURATION() + pool.MIN_MEMBERSHIP_PERIOD() + 1);
+        // Move past minimum period
+        vm.warp(block.timestamp + pool.MIN_MEMBERSHIP_PERIOD());
 
-        vm.startPrank(founder1);
         vm.expectRevert("Must contribute before leaving");
         pool.leavePool();
         vm.stopPrank();
@@ -224,9 +169,6 @@ contract SuccessPoolTest is Test {
         vm.startPrank(founder2);
         pool.joinPool(suint256(10));
         vm.stopPrank();
-
-        // Move past join window
-        vm.warp(block.timestamp + pool.JOIN_WINDOW_DURATION() + 1);
 
         // Founder 1 contributes
         vm.startPrank(founder1);

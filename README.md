@@ -9,24 +9,25 @@ A Seismic-powered, encrypted income-sharing pool where successful startup founde
    - Agree to share a fixed percentage (1-10%) of future successful exits
    - No upfront contributions required
    - All commitments remain encrypted
+   - Fixed 30-day join window
 
 2. **Founders Exit & Contribute**
 
    - Submit encrypted exit reports
    - Smart contract verifies and processes the contribution
    - Committed percentage is automatically contributed to the pool
+   - Minimum 7 days between contributions
 
 3. **Dividend Distribution**
    - Contributions are automatically distributed to all members
    - All payouts remain encrypted
-   - Fair distribution mechanism
+   - Fair distribution mechanism based on commitment percentages
 
 ## 📦 Smart Contracts
 
-- `SuccessPool.sol`: Main contract managing pool entries and contributions
+- `SuccessPool.sol`: Main contract managing pool entries and contributions with fixed rules
 - `ExitContribution.sol`: Processes encrypted exit reports
 - `DividendDistributor.sol`: Handles encrypted dividend distribution
-- `Governance.sol`: Optional governance for adjusting parameters
 
 ## 🚀 Getting Started
 

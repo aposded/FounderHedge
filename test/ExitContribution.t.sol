@@ -5,7 +5,6 @@ import {Test, console} from "forge-std/Test.sol";
 import {ExitContribution} from "../src/ExitContribution.sol";
 import {SuccessPool} from "../src/SuccessPool.sol";
 import {DividendDistributor} from "../src/DividendDistributor.sol";
-import {Governance} from "../src/Governance.sol";
 
 contract ExitContributionTest is Test {
     ExitContribution public exitContribution;
@@ -29,13 +28,11 @@ contract ExitContributionTest is Test {
         
         // Deploy mock contracts for dependencies
         DividendDistributor mockDividendDistributor = new DividendDistributor(address(this));
-        Governance mockGovernance = new Governance();
         
         // Deploy SuccessPool with dependencies
         successPool = new SuccessPool(
             address(exitContribution),
-            address(mockDividendDistributor),
-            address(mockGovernance)
+            address(mockDividendDistributor)
         );
 
         // Set pool contract in ExitContribution

@@ -116,13 +116,11 @@ contract DividendDistributor {
         require(uint256(percentage) >= MIN_COMMITMENT_PERCENTAGE, "Commitment too low");
         require(uint256(percentage) <= MAX_COMMITMENT_PERCENTAGE, "Commitment too high");
         
-        // Only enforce commitment lock after join window
-        if (block.timestamp > pool.joinWindowEnds()) {
-            require(
-                block.timestamp >= lastCommitmentUpdate[member] + COMMITMENT_LOCK_PERIOD,
-                "Commitment locked"
-            );
-        }
+        // Enforce commitment lock period
+        require(
+            block.timestamp >= lastCommitmentUpdate[member] + COMMITMENT_LOCK_PERIOD,
+            "Commitment locked"
+        );
         
         // Update state following checks-effects-interactions
         suint256 oldPercentage = commitmentPercentages[member];

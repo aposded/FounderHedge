@@ -21,7 +21,7 @@ contract ExitContribution {
     address public poolContract;
     
     // Events
-    event ContributionProcessed(address indexed contributor);
+    event ContributionProcessed(address indexed contributor, uint256 timestamp);
     event ContributionVerified(address indexed contributor);
     event EmergencyPaused();
     event EmergencyUnpaused();
@@ -89,27 +89,26 @@ contract ExitContribution {
     }
     
     /**
-     * @dev Process a new contribution from a member
-     * @param contributor The address of the contributing member
-     * @param amount The encrypted contribution amount
+     * @dev Process a contribution from a member
+     * @param contributor The contributing member's address
+     * @param contribution The encrypted contribution amount
      */
-    function processContribution(address contributor, suint256 amount) external onlyPool whenNotPaused {
+    function processContribution(address contributor, suint256 contribution) external onlyPool whenNotPaused {
         require(contributor != address(0), "Invalid contributor address");
-        require(uint256(amount) <= MAX_CONTRIBUTION, "Contribution too large");
+        require(uint256(contribution) <= MAX_CONTRIBUTION, "Contribution too large");
         
-        // Ensure minimum time between processing
+        // Validate contribution timing
         if (block.timestamp < lastProcessTime[contributor] + MIN_PROCESS_INTERVAL) {
             revert ProcessTooFrequent();
         }
         
-        // Convert encrypted amount to uint256 for storage
-        uint256 plainAmount = uint256(amount);
-        
+        // Update state
+        uint256 plainAmount = uint256(contribution);
         lastContributionAmount[contributor] = plainAmount;
         totalProcessedValue[contributor] += plainAmount;
         lastProcessTime[contributor] = block.timestamp;
         
-        emit ContributionProcessed(contributor);
+        emit ContributionProcessed(contributor, block.timestamp);
     }
     
     /**

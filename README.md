@@ -1,92 +1,175 @@
-# 📌 Encrypted Success Pool
+# FounderHedge
 
-A Seismic-powered, encrypted income-sharing pool where successful startup founders contribute a percentage of their exit to immediately distribute dividends to other members. This ensures that founders hedge against failure by benefiting from others' success while keeping all values private.
+A decentralized success-sharing pool for startup founders, built with privacy-preserving technology.
 
-## 🛠️ How It Works
+## Overview
 
-1. **Founders Join the Pool**
+FounderHedge allows startup founders to create a mutual support pool where they commit a percentage of their future exits. All transactions and commitments are encrypted, ensuring privacy while maintaining transparency.
 
-   - Agree to share a fixed percentage (1-10%) of future successful exits
-   - No upfront contributions required
-   - All commitments remain encrypted
-   - Fixed 30-day join window
+## Features
 
-2. **Founders Exit & Contribute**
+- Privacy-preserving transactions using encrypted smart contracts
+- Commitment range: 1-10% of future exits
+- 90-day minimum membership period
+- 7-day interval between contributions
+- Fair dividend distribution based on commitment percentages
+- Emergency controls for contract security
 
-   - Submit encrypted exit reports
-   - Smart contract verifies and processes the contribution
-   - Committed percentage is automatically contributed to the pool
-   - Minimum 7 days between contributions
-
-3. **Dividend Distribution**
-   - Contributions are automatically distributed to all members
-   - All payouts remain encrypted
-   - Fair distribution mechanism based on commitment percentages
-
-## 📦 Smart Contracts
-
-- `SuccessPool.sol`: Main contract managing pool entries and contributions with fixed rules
-- `ExitContribution.sol`: Processes encrypted exit reports
-- `DividendDistributor.sol`: Handles encrypted dividend distribution
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Seismic development environment
-- sforge installed
-- Private key for deployment
-
-### Installation
+## Installation
 
 1. Clone the repository:
 
 ```bash
-git clone <repository-url>
-cd seismic-success-pool
+git clone https://github.com/yourusername/FounderHedge.git
+cd FounderHedge
 ```
 
 2. Install dependencies:
 
 ```bash
-sforge install
+cd cli
+npm install
 ```
 
-3. Compile contracts:
+3. Set up environment variables:
 
 ```bash
-sforge build
+cp .env.example .env
 ```
 
-### Deployment
+Edit `.env` with your configuration:
 
-1. Set up your environment variables:
+```
+PRIVATE_KEY=your_private_key
+POOL_ADDRESS=deployed_pool_contract_address
+RPC_URL=your_rpc_endpoint
+```
+
+## CLI Commands
+
+### Join Pool
+
+Join the success pool with a specified commitment percentage (1-10%):
 
 ```bash
-export PRIVKEY=your_private_key
+npm start join <percentage>
 ```
 
-2. Deploy the contracts:
+Example: `npm start join 5` (commits 5% of future exits)
+
+### Contribute Exit
+
+Contribute an exit to the pool:
 
 ```bash
-sforge script script/Deploy.s.sol --broadcast
+npm start contribute <amount>
 ```
 
-## 🔒 Privacy Features
+Example: `npm start contribute 0.1` (contributes 0.1 ETH)
 
-- All balances and contributions are encrypted using Seismic's native encryption
-- Member identities remain private
-- Transaction values are hidden
-- Pool total value is encrypted
+### Check Status
 
-## 🧪 Testing
-
-Run the test suite:
+View your pool membership status:
 
 ```bash
-sforge test
+npm start status
 ```
 
-## 📜 License
+Shows:
 
-MIT License
+- Membership status
+- Commitment percentage
+- Join date
+- Eligibility to leave
+
+### Check Join Window
+
+View the status of the join window:
+
+```bash
+npm start window
+```
+
+### Check Next Contribution
+
+See when you can make your next contribution:
+
+```bash
+npm start next-contribution
+```
+
+### Leave Pool
+
+Leave the pool (after minimum membership period):
+
+```bash
+npm start leave
+```
+
+### Check Distribution Status
+
+View dividend distribution status:
+
+```bash
+npm start distribution
+```
+
+## Transaction Parameters
+
+The CLI uses the following parameters for transactions:
+
+- Gas: 100,000 units
+- Transaction type: 0x4a (for shielded transactions)
+
+## Recent Changes
+
+1. Gas optimization:
+
+   - Simplified gas parameters
+   - Using fixed gas value of 100,000 units
+   - Removed maxFeePerGas and maxPriorityFeePerGas for better compatibility
+
+2. Error handling improvements:
+
+   - Better error messages for common failures
+   - Detailed feedback for contribution timing
+   - Clear status reporting
+
+3. Security enhancements:
+   - Added contract verification checks
+   - Improved encrypted transaction handling
+   - Better state validation
+
+## Contract Architecture
+
+The system consists of three main contracts:
+
+1. `SuccessPool.sol`: Main contract managing membership and contributions
+2. `ExitContribution.sol`: Handles contribution processing and verification
+3. `DividendDistributor.sol`: Manages dividend calculations and distribution
+
+## Security Considerations
+
+- All sensitive data is encrypted on-chain
+- Minimum intervals prevent spam
+- Emergency pause functionality
+- Admin controls for security
+- Maximum limits on contributions and claims
+
+## Development
+
+To build the CLI:
+
+```bash
+npm run build
+```
+
+To run tests:
+
+```bash
+npm test
+```
+
+## License
+
+MIT

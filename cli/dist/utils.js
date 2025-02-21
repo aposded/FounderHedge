@@ -13,4 +13,3 @@ export async function getShieldedContractWithCheck(walletClient, abi, address) {
     }
     return contract;
 }
-//# sourceMappingURL=utils.js.map

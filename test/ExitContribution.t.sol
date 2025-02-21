@@ -5,13 +5,13 @@ import {Test, console} from "forge-std/Test.sol";
 import {ExitContribution} from "../src/ExitContribution.sol";
 import {SuccessPool} from "../src/SuccessPool.sol";
 import {DividendDistributor} from "../src/DividendDistributor.sol";
-import {WETH} from "../src/WETH.sol";
+import {USDY} from "../src/USDY.sol";
 
 contract ExitContributionTest is Test {
     ExitContribution public exitContribution;
     SuccessPool public successPool;
     DividendDistributor public dividendDistributor;
-    WETH public weth;
+    USDY public usdy;
     address public member1 = address(0x1);
     address public member2 = address(0x2);
     address public member3 = address(0x3);
@@ -28,13 +28,13 @@ contract ExitContributionTest is Test {
     function setUp() public {
         // Deploy contracts
         exitContribution = new ExitContribution();
-        weth = new WETH();
+        usdy = new USDY(address(this));
         
         // Deploy SuccessPool with temporary DividendDistributor address
         successPool = new SuccessPool(
             address(exitContribution),
             address(0), // Temporary DividendDistributor address
-            address(weth)
+            address(usdy)
         );
         
         // Deploy DividendDistributor with pool address

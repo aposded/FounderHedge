@@ -2,9 +2,9 @@
 pragma solidity ^0.8.13;
 
 /**
- * @title IWETH - Interface for Privacy-Preserving Wrapped Ether
+ * @title IUSDY - Interface for Privacy-Preserving USD Yield Token
  */
-interface IWETH {
+interface IUSDY {
     function deposit() external payable;
     function withdraw(uint256) external;
     function approve(saddress spender, suint256 amount) external returns (bool);

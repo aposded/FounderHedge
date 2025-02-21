@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "./ExitContribution.sol";
 import "./DividendDistributor.sol";
-import "./interfaces/IWETH.sol";
+import "./interfaces/IUSDY.sol";
 
 /**
  * @title SuccessPool
@@ -31,7 +31,7 @@ contract SuccessPool {
     // Contract references
     ExitContribution public exitContribution;
     DividendDistributor public dividendDistributor;
-    IWETH public immutable WETH;
+    IUSDY public immutable USDY;
     
     // Emergency controls
     bool public paused;
@@ -57,14 +57,14 @@ contract SuccessPool {
     constructor(
         address _exitContribution,
         address _dividendDistributor,
-        address _weth
+        address _usdy
     ) {
         require(_exitContribution != address(0), "Invalid exit contribution address");
-        require(_weth != address(0), "Invalid WETH address");
+        require(_usdy != address(0), "Invalid USDY address");
         
         exitContribution = ExitContribution(_exitContribution);
         dividendDistributor = DividendDistributor(_dividendDistributor);
-        WETH = IWETH(_weth);
+        USDY = IUSDY(_usdy);
         admin = msg.sender;
     }
     
@@ -137,8 +137,8 @@ contract SuccessPool {
     }
     
     /**
-     * @dev Submit an exit contribution to the pool using wETH
-     * @param contribution The contribution amount in wETH
+     * @dev Submit an exit contribution to the pool using USDY
+     * @param contribution The contribution amount in USDY
      */
     function contributeExit(suint256 contribution) external whenNotPaused {
         require(bool(isActiveMember[msg.sender]), "Not a member");
@@ -155,8 +155,12 @@ contract SuccessPool {
         totalContributed[msg.sender] += contribution;
         totalPoolValue += contribution;
         
-        // Transfer wETH from sender to this contract
-        bool success = WETH.transferFrom(msg.sender, address(this), uint256(contribution));
+        // Transfer USDY from sender to this contract
+        bool success = USDY.transferFrom(
+            saddress(msg.sender), 
+            saddress(address(this)), 
+            contribution
+        );
         if (!success) revert TransferFailed();
         
         emit ContributionReceived(msg.sender);

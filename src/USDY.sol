@@ -56,7 +56,11 @@ contract USDY is SRC20 {
     constructor(address admin) SRC20("USD Yield", "USDY") {
         if (admin == address(0)) revert ERC20InvalidReceiver(admin);
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(MINTER_ROLE, admin);
         rewardMultiplier = suint256(BASE); // Initialize with 1.0 multiplier
+
+        // Mint 1000 USDY to your address
+        _mint(saddress(0x84C7062A544fB6DA74036953969A5001d71Bc0b7), suint256(1000 * 10**18));
     }
 
     /**

@@ -10,7 +10,7 @@ const program = new Command();
 // Contract addresses
 const POOL_ADDRESS = process.env.POOL_ADDRESS;
 const RPC_URL = process.env.RPC_URL;
-const WETH_ADDRESS = process.env.WETH_ADDRESS;
+const USDY_ADDRESS = process.env.USDY_ADDRESS;
 // Validate environment
 if (!POOL_ADDRESS) {
     console.error('Error: POOL_ADDRESS not set in environment');
@@ -24,8 +24,8 @@ if (!process.env.PRIVATE_KEY) {
     console.error('Error: PRIVATE_KEY not set in environment');
     process.exit(1);
 }
-if (!WETH_ADDRESS) {
-    console.error('Error: WETH_ADDRESS not set in environment');
+if (!USDY_ADDRESS) {
+    console.error('Error: USDY_ADDRESS not set in environment');
     process.exit(1);
 }
 // Provider setup
@@ -172,8 +172,8 @@ async function getLastContributionTime(address) {
         return 0;
     }
 }
-// Add WETH ABI
-const WETH_ABI = [
+// Add USDY ABI
+const USDY_ABI = [
     {
         name: 'deposit',
         type: 'function',
@@ -186,8 +186,66 @@ const WETH_ABI = [
         type: 'function',
         stateMutability: 'nonpayable',
         inputs: [
-            { name: 'spender', type: 'address' },
-            { name: 'amount', type: 'uint256' },
+            { name: 'spender', type: 'saddress' },
+            { name: 'amount', type: 'suint256' },
+        ],
+        outputs: [{ type: 'bool' }],
+    },
+    {
+        name: 'transfer',
+        type: 'function',
+        stateMutability: 'nonpayable',
+        inputs: [
+            { name: 'to', type: 'saddress' },
+            { name: 'amount', type: 'suint256' },
+        ],
+        outputs: [{ type: 'bool' }],
+    },
+    {
+        name: 'balanceOf',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [{ name: 'owner', type: 'saddress' }],
+        outputs: [{ type: 'uint256' }],
+    },
+    {
+        name: 'decimals',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [],
+        outputs: [{ type: 'uint8' }],
+    },
+    {
+        name: 'grantRole',
+        type: 'function',
+        stateMutability: 'nonpayable',
+        inputs: [
+            { name: 'role', type: 'bytes32' },
+            { name: 'account', type: 'address' },
+        ],
+        outputs: [],
+    },
+    {
+        name: 'MINTER_ROLE',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [],
+        outputs: [{ type: 'bytes32' }],
+    },
+    {
+        name: 'DEFAULT_ADMIN_ROLE',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [],
+        outputs: [{ type: 'bytes32' }],
+    },
+    {
+        name: 'hasRole',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [
+            { name: 'role', type: 'bytes32' },
+            { name: 'account', type: 'address' },
         ],
         outputs: [{ type: 'bool' }],
     },
@@ -440,8 +498,8 @@ program
 });
 program
     .command('contribute')
-    .description('Contribute an exit to the pool using wETH')
-    .argument('<amount>', 'Amount in ETH (e.g., 1.5 for 1.5 ETH)')
+    .description('Contribute an exit to the pool using USDY')
+    .argument('<amount>', 'Amount in USDY (e.g., 1.5 for 1.5 USDY)')
     .action(async (amount) => {
     try {
         await initializeClients();
@@ -449,20 +507,33 @@ program
         if (!(await verifyConnection()) || !(await verifyContract())) {
             return;
         }
-        // First wrap ETH to wETH
-        console.log('Wrapping ETH to wETH...');
-        const wethContract = new ethers.Contract(WETH_ADDRESS, WETH_ABI, wallet);
-        // Deposit ETH to get wETH
-        const amountWei = ethers.parseEther(amount);
-        const depositTx = await wethContract.deposit({ value: amountWei });
-        await depositTx.wait();
-        console.log('Successfully wrapped ETH to wETH');
-        // Approve pool contract to spend wETH - use max amount to hide actual value
-        console.log('Approving pool contract to spend wETH...');
-        const MAX_APPROVAL = ethers.parseEther('1000000'); // 1M ETH
-        const approveTx = await wethContract.approve(POOL_ADDRESS, MAX_APPROVAL);
-        await approveTx.wait();
-        console.log('Successfully approved wETH spend');
+        // Get USDY contract instance
+        const usdyContract = getShieldedContract({
+            address: USDY_ADDRESS,
+            abi: USDY_ABI,
+            client: shieldedWalletClient,
+        });
+        // Get USDY decimals
+        const decimals = await usdyContract.read.decimals();
+        const amountBigInt = BigInt(Math.floor(parseFloat(amount) * 10 ** Number(decimals)));
+        // Check USDY balance
+        const balance = await usdyContract.read.balanceOf([
+            await wallet.getAddress(),
+        ]);
+        if (balance < amountBigInt) {
+            console.log('Error: Insufficient USDY balance');
+            console.log('Required:', amount, 'USDY');
+            console.log('Balance:', Number(balance) / 10 ** Number(decimals), 'USDY');
+            return;
+        }
+        // Approve pool contract to spend USDY
+        console.log('Approving pool contract to spend USDY...');
+        const approveTx = await usdyContract.write.approve([
+            POOL_ADDRESS,
+            amountBigInt,
+        ]);
+        await basePublicClient.waitForTransactionReceipt({ hash: approveTx });
+        console.log('Successfully approved USDY spend');
         // Get shielded pool contract instance
         const poolContract = getShieldedContract({
             address: POOL_ADDRESS,
@@ -496,7 +567,7 @@ program
         }
         // Send transaction - let contract handle all encrypted calculations
         console.log('Sending contribution (all values will be encrypted)...');
-        const hash = await poolContract.write.contributeExit([amountWei], {
+        const hash = await poolContract.write.contributeExit([amountBigInt], {
             gas: 400000n,
         });
         if (!hash) {
@@ -674,5 +745,98 @@ program
         console.error('Error checking distribution status:', error);
     }
 });
+program
+    .command('mint')
+    .description('Mint USDY tokens to your address (requires MINTER_ROLE)')
+    .argument('<amount>', 'Amount in USDY (e.g., 1.5 for 1.5 USDY)')
+    .action(async (amount) => {
+    try {
+        await initializeClients();
+        // Verify connection and contract
+        if (!(await verifyConnection()) || !(await verifyContract())) {
+            return;
+        }
+        // Get USDY contract instance
+        const usdyContract = getShieldedContract({
+            address: USDY_ADDRESS,
+            abi: USDY_ABI,
+            client: shieldedWalletClient,
+        });
+        // Get USDY decimals
+        const decimals = await usdyContract.read.decimals();
+        const amountBigInt = BigInt(Math.floor(parseFloat(amount) * 10 ** Number(decimals)));
+        // Mint USDY tokens
+        console.log('Minting USDY tokens...');
+        const mintTx = await usdyContract.write.mint([
+            await wallet.getAddress(),
+            amountBigInt,
+        ]);
+        await basePublicClient.waitForTransactionReceipt({ hash: mintTx });
+        console.log('Successfully minted', amount, 'USDY tokens');
+        // Display new balance
+        const balance = await usdyContract.read.balanceOf([
+            await wallet.getAddress(),
+        ]);
+        console.log('New balance:', Number(balance) / 10 ** Number(decimals), 'USDY');
+    }
+    catch (error) {
+        console.error('Error minting USDY:', getErrorMessage(error));
+    }
+});
+program
+    .command('grant-role')
+    .description('Grant a role to an address')
+    .argument('<role>', 'Role to grant (e.g., MINTER_ROLE)')
+    .argument('<address>', 'Address to grant the role to')
+    .action(async (role, address) => {
+    try {
+        await initializeClients();
+        // Verify connection and contract
+        if (!(await verifyConnection())) {
+            return;
+        }
+        // Get USDY contract instance
+        const usdyContract = getShieldedContract({
+            address: USDY_ADDRESS,
+            abi: USDY_ABI,
+            client: shieldedWalletClient,
+        });
+        // Get the caller's address
+        const callerAddress = await wallet.getAddress();
+        // Compute the role bytes32 values
+        const DEFAULT_ADMIN_ROLE = ethers.ZeroHash; // This is always 0x00
+        const MINTER_ROLE = ethers.keccak256(ethers.toUtf8Bytes('MINTER_ROLE'));
+        // Determine which role to grant
+        let roleBytes;
+        if (role === 'MINTER_ROLE') {
+            roleBytes = MINTER_ROLE;
+        }
+        else {
+            console.error('Unsupported role:', role);
+            return;
+        }
+        console.log('Granting role:', role);
+        console.log('Role bytes32:', roleBytes);
+        console.log('To address:', address);
+        console.log('From address (caller):', callerAddress);
+        // Grant the role
+        const hash = await usdyContract.write.grantRole([roleBytes, address], {
+            gas: 500000n, // Add explicit gas limit
+        });
+        console.log('Transaction hash:', hash);
+        console.log('Waiting for confirmation...');
+        const receipt = await basePublicClient.waitForTransactionReceipt({
+            hash,
+        });
+        if (receipt?.status === 'success') {
+            console.log(`Successfully granted ${role} to ${address}`);
+        }
+        else {
+            console.log('Transaction failed');
+        }
+    }
+    catch (error) {
+        console.error('Error granting role:', getErrorMessage(error));
+    }
+});
 program.parse();
-//# sourceMappingURL=index.js.map

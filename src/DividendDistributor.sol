@@ -20,8 +20,8 @@ contract DividendDistributor {
     // Constants
     uint256 public constant MIN_COMMITMENT_PERCENTAGE = 1;      // 1%
     uint256 public constant MAX_COMMITMENT_PERCENTAGE = 10;     // 10%
-    uint256 public constant COMMITMENT_LOCK_PERIOD = 30 days;   // Extended lock period
-    uint256 public constant MIN_DISTRIBUTION_INTERVAL = 1 days; // Minimum time between distributions
+    uint256 public constant COMMITMENT_LOCK_PERIOD = 90 days;   // Extended lock period
+    uint256 public constant MIN_DISTRIBUTION_INTERVAL = 7 days; // Minimum time between distributions
     uint256 public constant MAX_CLAIM_AMOUNT = 1e27;           // Safety cap on claims
     uint256 public constant PRECISION = 1e18;                  // Precision for calculations
     address public immutable poolContract;                     // Pool contract that can call protected functions

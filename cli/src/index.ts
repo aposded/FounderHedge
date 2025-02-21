@@ -20,6 +20,7 @@ const program = new Command();
 const POOL_ADDRESS = process.env.POOL_ADDRESS;
 const RPC_URL = process.env.RPC_URL;
 const USDY_ADDRESS = process.env.USDY_ADDRESS;
+const DISTRIBUTOR_ADDRESS = process.env.DISTRIBUTOR_ADDRESS;
 
 // Validate environment
 if (!POOL_ADDRESS) {
@@ -39,6 +40,11 @@ if (!process.env.PRIVATE_KEY) {
 
 if (!USDY_ADDRESS) {
   console.error('Error: USDY_ADDRESS not set in environment');
+  process.exit(1);
+}
+
+if (!DISTRIBUTOR_ADDRESS) {
+  console.error('Error: DISTRIBUTOR_ADDRESS not set in environment');
   process.exit(1);
 }
 
@@ -131,10 +137,7 @@ function encodeParameter(value: string | number | bigint) {
 // Helper function to check if error contains a specific selector
 function hasErrorSelector(error: any, selector: string): boolean {
   const errorData =
-    error.data ||
-    error.error?.data ||
-    error.info?.error?.data ||
-    error.error?.error?.data;
+    error.data || error.error?.data || error.info?.error?.data || error.error?.error?.data;
 
   if (!errorData) return false;
   return errorData.includes(selector);
@@ -286,7 +289,7 @@ program
   .command('join')
   .description('Join the success pool')
   .argument('<percentage>', 'Commitment percentage (1-10)')
-  .action(async (percentage) => {
+  .action(async percentage => {
     try {
       // Initialize clients first
       await initializeClients();
@@ -345,9 +348,7 @@ program
       // Handle viem errors
       if (error.message.includes('Details: revert:')) {
         // Extract the revert reason after "Details: revert:"
-        const match = error.message.match(
-          /Details: revert: (.*?)(?=\n|Version:|$)/
-        );
+        const match = error.message.match(/Details: revert: (.*?)(?=\n|Version:|$)/);
         if (match) {
           console.log('Error:', match[1]);
           return;
@@ -412,15 +413,9 @@ program
 
       if (now < minLeaveTime) {
         console.log('\nCannot leave pool yet:');
-        console.log(
-          '- You joined at:',
-          new Date(Number(joinTime) * 1000).toLocaleString()
-        );
+        console.log('- You joined at:', new Date(Number(joinTime) * 1000).toLocaleString());
         console.log('- Minimum membership period: 90 days');
-        console.log(
-          '- You can leave after:',
-          new Date(minLeaveTime * 1000).toLocaleString()
-        );
+        console.log('- You can leave after:', new Date(minLeaveTime * 1000).toLocaleString());
         const daysLeft = Math.ceil((minLeaveTime - now) / (24 * 60 * 60));
         console.log(`- Days remaining: ${daysLeft}`);
         return;
@@ -452,9 +447,7 @@ program
       // Handle viem errors
       if (error.message.includes('Details: revert:')) {
         // Extract the revert reason after "Details: revert:"
-        const match = error.message.match(
-          /Details: revert: (.*?)(?=\n|Version:|$)/
-        );
+        const match = error.message.match(/Details: revert: (.*?)(?=\n|Version:|$)/);
         if (match) {
           console.log('Error:', match[1]);
           return;
@@ -512,10 +505,7 @@ program
 
         // Get join time
         const joinTime = await contract.read.getMemberJoinTime();
-        console.log(
-          '- Joined at:',
-          new Date(Number(joinTime) * 1000).toLocaleString()
-        );
+        console.log('- Joined at:', new Date(Number(joinTime) * 1000).toLocaleString());
 
         // Calculate when you can leave (90 days after join)
         const minLeaveTime = Number(joinTime) + 90 * 24 * 60 * 60; // 90 days in seconds
@@ -523,14 +513,8 @@ program
 
         if (now < minLeaveTime) {
           console.log('\nLeaving Status:');
-          console.log(
-            '- Can leave after:',
-            new Date(minLeaveTime * 1000).toLocaleString()
-          );
-          console.log(
-            '- Days until eligible:',
-            Math.ceil((minLeaveTime - now) / (24 * 60 * 60))
-          );
+          console.log('- Can leave after:', new Date(minLeaveTime * 1000).toLocaleString());
+          console.log('- Days until eligible:', Math.ceil((minLeaveTime - now) / (24 * 60 * 60)));
         } else {
           console.log('\nLeaving Status:');
           console.log('- Eligible to leave: Yes');
@@ -550,35 +534,10 @@ program
   });
 
 program
-  .command('window')
-  .description('Check join window status')
-  .action(async () => {
-    try {
-      await initializeClients();
-
-      // Verify connection and contract
-      if (!(await verifyConnection()) || !(await verifyContract())) {
-        return;
-      }
-
-      console.log('\nJoin window status:');
-      console.log('Window information is private in this contract.');
-      console.log(
-        'To check if you can join, try using the join command directly.'
-      );
-      console.log(
-        'The contract will verify eligibility during the join process.'
-      );
-    } catch (error: any) {
-      console.error('Error checking window:', getErrorMessage(error));
-    }
-  });
-
-program
   .command('contribute')
   .description('Contribute an exit to the pool using USDY')
   .argument('<amount>', 'Amount in USDY (e.g., 1.5 for 1.5 USDY)')
-  .action(async (amount) => {
+  .action(async amount => {
     try {
       await initializeClients();
 
@@ -596,22 +555,14 @@ program
 
       // Get USDY decimals
       const decimals = await usdyContract.read.decimals();
-      const amountBigInt = BigInt(
-        Math.floor(parseFloat(amount) * 10 ** Number(decimals))
-      );
+      const amountBigInt = BigInt(Math.floor(parseFloat(amount) * 10 ** Number(decimals)));
 
       // Check USDY balance
-      const balance = await usdyContract.read.balanceOf([
-        await wallet.getAddress(),
-      ]);
+      const balance = await usdyContract.read.balanceOf([await wallet.getAddress()]);
       if (balance < amountBigInt) {
         console.log('Error: Insufficient USDY balance');
         console.log('Required:', amount, 'USDY');
-        console.log(
-          'Balance:',
-          Number(balance) / 10 ** Number(decimals),
-          'USDY'
-        );
+        console.log('Balance:', Number(balance) / 10 ** Number(decimals), 'USDY');
         return;
       }
 
@@ -639,34 +590,20 @@ program
         client: shieldedWalletClient,
       });
 
-      if (
-        !poolContract ||
-        !poolContract.write ||
-        !poolContract.write.contributeExit
-      ) {
+      if (!poolContract || !poolContract.write || !poolContract.write.contributeExit) {
         console.log('Error: Failed to initialize pool contract interface');
         return;
       }
 
       // Check contribution timing
-      const lastContribution = await getLastContributionTime(
-        await wallet.getAddress()
-      );
+      const lastContribution = await getLastContributionTime(await wallet.getAddress());
       const now = Math.floor(Date.now() / 1000);
       const MIN_CONTRIBUTION_INTERVAL = 24 * 60 * 60; // 1 day in seconds
 
-      if (
-        lastContribution > 0 &&
-        now < lastContribution + MIN_CONTRIBUTION_INTERVAL
-      ) {
+      if (lastContribution > 0 && now < lastContribution + MIN_CONTRIBUTION_INTERVAL) {
         console.log('Error: Must wait 24 hours between contributions');
-        const nextPossible = new Date(
-          (lastContribution + MIN_CONTRIBUTION_INTERVAL) * 1000
-        );
-        console.log(
-          'Next possible contribution:',
-          nextPossible.toLocaleString()
-        );
+        const nextPossible = new Date((lastContribution + MIN_CONTRIBUTION_INTERVAL) * 1000);
+        console.log('Next possible contribution:', nextPossible.toLocaleString());
         return;
       }
 
@@ -691,9 +628,7 @@ program
 
       if (receipt?.status === 'success') {
         console.log('\nContribution successful!');
-        console.log(
-          'All calculations and values are encrypted in the contract'
-        );
+        console.log('All calculations and values are encrypted in the contract');
       } else {
         console.log('Transaction failed');
       }
@@ -701,9 +636,7 @@ program
       // Handle viem errors
       if (error.message.includes('Details: revert:')) {
         // Extract the revert reason after "Details: revert:"
-        const match = error.message.match(
-          /Details: revert: (.*?)(?=\n|Version:|$)/
-        );
+        const match = error.message.match(/Details: revert: (.*?)(?=\n|Version:|$)/);
         if (match) {
           console.log('Error:', match[1]);
           return;
@@ -750,8 +683,7 @@ program
       }
 
       // Get ExitContribution contract address
-      const exitContributionAddress =
-        await poolContract.read.exitContribution();
+      const exitContributionAddress = await poolContract.read.exitContribution();
 
       // Get ExitContribution contract instance
       const contract = getShieldedContract({
@@ -776,9 +708,7 @@ program
       });
 
       if (!contract || !contract.read) {
-        console.log(
-          'Error: Failed to initialize ExitContribution contract interface'
-        );
+        console.log('Error: Failed to initialize ExitContribution contract interface');
         return;
       }
 
@@ -797,207 +727,18 @@ program
 
       if (now < Number(lastProcessTime) + MIN_CONTRIBUTION_INTERVAL) {
         console.log('You need to wait before your next contribution');
-        const nextContributionTime =
-          Number(lastProcessTime) + MIN_CONTRIBUTION_INTERVAL;
+        const nextContributionTime = Number(lastProcessTime) + MIN_CONTRIBUTION_INTERVAL;
         console.log(
           'Next contribution possible after:',
           new Date(nextContributionTime * 1000).toLocaleString()
         );
-        const daysLeft = Math.ceil(
-          (nextContributionTime - now) / (24 * 60 * 60)
-        );
+        const daysLeft = Math.ceil((nextContributionTime - now) / (24 * 60 * 60));
         console.log(`(approximately ${daysLeft} days from now)`);
       } else {
         console.log('You can contribute now!');
       }
     } catch (error: any) {
-      console.error(
-        'Error checking contribution status:',
-        getErrorMessage(error)
-      );
-    }
-  });
-
-program
-  .command('distribution')
-  .description('Check distribution status')
-  .action(async () => {
-    try {
-      // First check if join window is still open
-      const windowData = await provider.call({
-        to: POOL_ADDRESS,
-        data: `0x${SELECTORS.joinWindowEnds}`,
-      });
-      const windowEnd = ethers.toNumber(windowData);
-      const now = Math.floor(Date.now() / 1000);
-
-      if (now <= windowEnd) {
-        console.log('\nJoin window is still open');
-        console.log(
-          'Distributions will start after:',
-          new Date(windowEnd * 1000).toLocaleString()
-        );
-        return;
-      }
-
-      // Get recent distribution events
-      const filter = {
-        address: POOL_ADDRESS,
-        topics: [ethers.id('DividendsDistributed()')],
-        fromBlock: -10000n, // Look back further
-      };
-
-      const events = await provider.getLogs(filter);
-
-      if (events.length > 0) {
-        const lastEvent = events[events.length - 1];
-        const timestamp = await provider.getBlock(lastEvent.blockNumber);
-        console.log('\nLast distribution:');
-        console.log('Block:', lastEvent.blockNumber);
-        console.log(
-          'Time:',
-          new Date(Number(timestamp?.timestamp) * 1000).toLocaleString()
-        );
-
-        // Next distribution estimate (30 days after last one)
-        const nextDist = Number(timestamp?.timestamp) + 30 * 24 * 60 * 60;
-        const daysLeft = Math.ceil((nextDist - now) / (24 * 60 * 60));
-
-        console.log('\nNext distribution (estimated):');
-        console.log('Time:', new Date(nextDist * 1000).toLocaleString());
-        console.log(`Approximately ${daysLeft} days from now`);
-      } else {
-        console.log('\nNo distribution events found yet');
-        if (now > windowEnd) {
-          console.log('Distributions should start soon');
-        }
-      }
-
-      // Show member count if available
-      try {
-        const memberData = await provider.call({
-          to: POOL_ADDRESS,
-          data: `0x${ethers.id('memberCount()').slice(2, 10)}`,
-        });
-        const count = ethers.toNumber(memberData);
-        console.log('\nCurrent member count:', count);
-      } catch (error) {
-        // Ignore member count errors
-      }
-    } catch (error) {
-      console.error('Error checking distribution status:', error);
-    }
-  });
-
-program
-  .command('mint')
-  .description('Mint USDY tokens to your address (requires MINTER_ROLE)')
-  .argument('<amount>', 'Amount in USDY (e.g., 1.5 for 1.5 USDY)')
-  .action(async (amount) => {
-    try {
-      await initializeClients();
-
-      // Verify connection and contract
-      if (!(await verifyConnection()) || !(await verifyContract())) {
-        return;
-      }
-
-      // Get USDY contract instance
-      const usdyContract = getShieldedContract({
-        address: USDY_ADDRESS as `0x${string}`,
-        abi: USDY_ABI,
-        client: shieldedWalletClient,
-      });
-
-      // Get USDY decimals
-      const decimals = await usdyContract.read.decimals();
-      const amountBigInt = BigInt(
-        Math.floor(parseFloat(amount) * 10 ** Number(decimals))
-      );
-
-      // Mint USDY tokens
-      console.log('Minting USDY tokens...');
-      const mintTx = await usdyContract.write.mint([
-        await wallet.getAddress(),
-        amountBigInt,
-      ]);
-
-      await basePublicClient.waitForTransactionReceipt({ hash: mintTx });
-      console.log('Successfully minted', amount, 'USDY tokens');
-
-      // Display new balance
-      const balance = await usdyContract.read.balanceOf([
-        await wallet.getAddress(),
-      ]);
-      console.log(
-        'New balance:',
-        Number(balance) / 10 ** Number(decimals),
-        'USDY'
-      );
-    } catch (error: any) {
-      console.error('Error minting USDY:', getErrorMessage(error));
-    }
-  });
-
-program
-  .command('grant-role')
-  .description('Grant a role to an address')
-  .argument('<role>', 'Role to grant (e.g., MINTER_ROLE)')
-  .argument('<address>', 'Address to grant the role to')
-  .action(async (role, address) => {
-    try {
-      await initializeClients();
-
-      // Verify connection and contract
-      if (!(await verifyConnection())) {
-        return;
-      }
-
-      // Get USDY contract instance
-      const usdyContract = getShieldedContract({
-        address: USDY_ADDRESS as `0x${string}`,
-        abi: USDY_ABI,
-        client: shieldedWalletClient,
-      });
-
-      // Get the caller's address
-      const callerAddress = await wallet.getAddress();
-
-      // Compute the role bytes32 values
-      const DEFAULT_ADMIN_ROLE = ethers.ZeroHash; // This is always 0x00
-      const MINTER_ROLE = ethers.keccak256(ethers.toUtf8Bytes('MINTER_ROLE'));
-
-      // Determine which role to grant
-      let roleBytes;
-      if (role === 'MINTER_ROLE') {
-        roleBytes = MINTER_ROLE;
-      } else {
-        console.error('Unsupported role:', role);
-        return;
-      }
-
-      console.log('Granting role:', role);
-      console.log('Role bytes32:', roleBytes);
-      console.log('To address:', address);
-      console.log('From address (caller):', callerAddress);
-
-      // Grant the role
-      const hash = await usdyContract.write.grantRole([roleBytes, address], {
-        gas: 500000n, // Add explicit gas limit
-      });
-      console.log('Transaction hash:', hash);
-      console.log('Waiting for confirmation...');
-
-      const receipt = await basePublicClient.waitForTransactionReceipt({
-        hash,
-      });
-      if (receipt?.status === 'success') {
-        console.log(`Successfully granted ${role} to ${address}`);
-      } else {
-        console.log('Transaction failed');
-      }
-    } catch (error: any) {
-      console.error('Error granting role:', getErrorMessage(error));
+      console.error('Error checking contribution status:', getErrorMessage(error));
     }
   });
 

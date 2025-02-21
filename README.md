@@ -4,7 +4,10 @@ A decentralized success-sharing pool for startup founders, built with privacy-pr
 
 ## Overview
 
-FounderHedge allows startup founders to create a mutual support pool where they commit a percentage of their future exits. All transactions and commitments are encrypted, ensuring privacy while maintaining transparency. The system uses wETH (wrapped ETH) for contributions to ensure transaction values remain private.
+FounderHedge allows startup founders to create a mutual support pool where they commit a percentage
+of their future exits. All transactions and commitments are encrypted, ensuring privacy while
+maintaining transparency. The system uses wETH (wrapped ETH) for contributions to ensure transaction
+values remain private.
 
 ## Features
 
@@ -89,14 +92,6 @@ Shows:
 - Join date
 - Eligibility to leave
 
-### Check Join Window
-
-View the status of the join window:
-
-```bash
-npm start window
-```
-
 ### Check Next Contribution
 
 See when you can make your next contribution:
@@ -113,46 +108,13 @@ Leave the pool (after minimum membership period):
 npm start leave
 ```
 
-### Check Distribution Status
-
-View dividend distribution status:
-
-```bash
-npm start distribution
-```
-
 ## Transaction Parameters
 
 The CLI uses the following parameters for transactions:
 
-- Gas: 400,000 units (increased for wETH operations)
+- Gas: 400,000 units
 - Transaction type: 0x4a (for shielded transactions)
-- Uses wETH for value privacy
-
-## Recent Changes
-
-1. wETH Integration:
-
-   - Now using wETH instead of native ETH for better privacy
-   - Automatic ETH wrapping and approval process
-   - Updated gas limits for multi-step transactions
-
-2. Gas optimization:
-
-   - Increased gas limit to 400,000 units for wETH operations
-   - Removed maxFeePerGas and maxPriorityFeePerGas for better compatibility
-
-3. Error handling improvements:
-
-   - Better error messages for common failures
-   - Detailed feedback for contribution timing
-   - Clear status reporting
-
-4. Security enhancements:
-   - Added contract verification checks
-   - Improved encrypted transaction handling
-   - Better state validation
-   - wETH integration for enhanced privacy
+- Uses USDY for value privacy
 
 ## Contract Architecture
 
@@ -165,7 +127,7 @@ The system consists of three main contracts:
 ## Security Considerations
 
 - All sensitive data is encrypted on-chain
-- Transaction values hidden through wETH usage
+- Transaction values hidden through USDY usage
 - Minimum intervals prevent spam
 - Emergency pause functionality
 - Admin controls for security

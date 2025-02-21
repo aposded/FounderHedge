@@ -11,6 +11,7 @@ const program = new Command();
 const POOL_ADDRESS = process.env.POOL_ADDRESS;
 const RPC_URL = process.env.RPC_URL;
 const USDY_ADDRESS = process.env.USDY_ADDRESS;
+const DISTRIBUTOR_ADDRESS = process.env.DISTRIBUTOR_ADDRESS;
 // Validate environment
 if (!POOL_ADDRESS) {
     console.error('Error: POOL_ADDRESS not set in environment');
@@ -26,6 +27,10 @@ if (!process.env.PRIVATE_KEY) {
 }
 if (!USDY_ADDRESS) {
     console.error('Error: USDY_ADDRESS not set in environment');
+    process.exit(1);
+}
+if (!DISTRIBUTOR_ADDRESS) {
+    console.error('Error: DISTRIBUTOR_ADDRESS not set in environment');
     process.exit(1);
 }
 // Provider setup
@@ -107,10 +112,7 @@ function encodeParameter(value) {
 }
 // Helper function to check if error contains a specific selector
 function hasErrorSelector(error, selector) {
-    const errorData = error.data ||
-        error.error?.data ||
-        error.info?.error?.data ||
-        error.error?.error?.data;
+    const errorData = error.data || error.error?.data || error.info?.error?.data || error.error?.error?.data;
     if (!errorData)
         return false;
     return errorData.includes(selector);
@@ -478,25 +480,6 @@ program
     }
 });
 program
-    .command('window')
-    .description('Check join window status')
-    .action(async () => {
-    try {
-        await initializeClients();
-        // Verify connection and contract
-        if (!(await verifyConnection()) || !(await verifyContract())) {
-            return;
-        }
-        console.log('\nJoin window status:');
-        console.log('Window information is private in this contract.');
-        console.log('To check if you can join, try using the join command directly.');
-        console.log('The contract will verify eligibility during the join process.');
-    }
-    catch (error) {
-        console.error('Error checking window:', getErrorMessage(error));
-    }
-});
-program
     .command('contribute')
     .description('Contribute an exit to the pool using USDY')
     .argument('<amount>', 'Amount in USDY (e.g., 1.5 for 1.5 USDY)')
@@ -517,9 +500,7 @@ program
         const decimals = await usdyContract.read.decimals();
         const amountBigInt = BigInt(Math.floor(parseFloat(amount) * 10 ** Number(decimals)));
         // Check USDY balance
-        const balance = await usdyContract.read.balanceOf([
-            await wallet.getAddress(),
-        ]);
+        const balance = await usdyContract.read.balanceOf([await wallet.getAddress()]);
         if (balance < amountBigInt) {
             console.log('Error: Insufficient USDY balance');
             console.log('Required:', amount, 'USDY');
@@ -548,9 +529,7 @@ program
             ],
             client: shieldedWalletClient,
         });
-        if (!poolContract ||
-            !poolContract.write ||
-            !poolContract.write.contributeExit) {
+        if (!poolContract || !poolContract.write || !poolContract.write.contributeExit) {
             console.log('Error: Failed to initialize pool contract interface');
             return;
         }
@@ -558,8 +537,7 @@ program
         const lastContribution = await getLastContributionTime(await wallet.getAddress());
         const now = Math.floor(Date.now() / 1000);
         const MIN_CONTRIBUTION_INTERVAL = 24 * 60 * 60; // 1 day in seconds
-        if (lastContribution > 0 &&
-            now < lastContribution + MIN_CONTRIBUTION_INTERVAL) {
+        if (lastContribution > 0 && now < lastContribution + MIN_CONTRIBUTION_INTERVAL) {
             console.log('Error: Must wait 24 hours between contributions');
             const nextPossible = new Date((lastContribution + MIN_CONTRIBUTION_INTERVAL) * 1000);
             console.log('Next possible contribution:', nextPossible.toLocaleString());
@@ -690,153 +668,110 @@ program
     .description('Check distribution status')
     .action(async () => {
     try {
-        // First check if join window is still open
-        const windowData = await provider.call({
-            to: POOL_ADDRESS,
-            data: `0x${SELECTORS.joinWindowEnds}`,
-        });
-        const windowEnd = ethers.toNumber(windowData);
-        const now = Math.floor(Date.now() / 1000);
-        if (now <= windowEnd) {
-            console.log('\nJoin window is still open');
-            console.log('Distributions will start after:', new Date(windowEnd * 1000).toLocaleString());
-            return;
-        }
-        // Get recent distribution events
-        const filter = {
-            address: POOL_ADDRESS,
-            topics: [ethers.id('DividendsDistributed()')],
-            fromBlock: -10000n, // Look back further
-        };
-        const events = await provider.getLogs(filter);
-        if (events.length > 0) {
-            const lastEvent = events[events.length - 1];
-            const timestamp = await provider.getBlock(lastEvent.blockNumber);
-            console.log('\nLast distribution:');
-            console.log('Block:', lastEvent.blockNumber);
-            console.log('Time:', new Date(Number(timestamp?.timestamp) * 1000).toLocaleString());
-            // Next distribution estimate (30 days after last one)
-            const nextDist = Number(timestamp?.timestamp) + 30 * 24 * 60 * 60;
-            const daysLeft = Math.ceil((nextDist - now) / (24 * 60 * 60));
-            console.log('\nNext distribution (estimated):');
-            console.log('Time:', new Date(nextDist * 1000).toLocaleString());
-            console.log(`Approximately ${daysLeft} days from now`);
-        }
-        else {
-            console.log('\nNo distribution events found yet');
-            if (now > windowEnd) {
-                console.log('Distributions should start soon');
-            }
-        }
-        // Show member count if available
-        try {
-            const memberData = await provider.call({
-                to: POOL_ADDRESS,
-                data: `0x${ethers.id('memberCount()').slice(2, 10)}`,
-            });
-            const count = ethers.toNumber(memberData);
-            console.log('\nCurrent member count:', count);
-        }
-        catch (error) {
-            // Ignore member count errors
-        }
-    }
-    catch (error) {
-        console.error('Error checking distribution status:', error);
-    }
-});
-program
-    .command('mint')
-    .description('Mint USDY tokens to your address (requires MINTER_ROLE)')
-    .argument('<amount>', 'Amount in USDY (e.g., 1.5 for 1.5 USDY)')
-    .action(async (amount) => {
-    try {
+        // Initialize clients first
         await initializeClients();
         // Verify connection and contract
         if (!(await verifyConnection()) || !(await verifyContract())) {
             return;
         }
-        // Get USDY contract instance
-        const usdyContract = getShieldedContract({
-            address: USDY_ADDRESS,
-            abi: USDY_ABI,
+        // Get shielded contract instance with correct ABI types
+        const contract = getShieldedContract({
+            address: POOL_ADDRESS,
+            abi: [
+                {
+                    name: 'joinWindowEnds',
+                    type: 'function',
+                    stateMutability: 'view',
+                    inputs: [],
+                    outputs: [{ type: 'uint256' }],
+                },
+                {
+                    name: 'memberCount',
+                    type: 'function',
+                    stateMutability: 'view',
+                    inputs: [],
+                    outputs: [{ type: 'uint256' }],
+                },
+            ],
             client: shieldedWalletClient,
         });
-        // Get USDY decimals
-        const decimals = await usdyContract.read.decimals();
-        const amountBigInt = BigInt(Math.floor(parseFloat(amount) * 10 ** Number(decimals)));
-        // Mint USDY tokens
-        console.log('Minting USDY tokens...');
-        const mintTx = await usdyContract.write.mint([
-            await wallet.getAddress(),
-            amountBigInt,
-        ]);
-        await basePublicClient.waitForTransactionReceipt({ hash: mintTx });
-        console.log('Successfully minted', amount, 'USDY tokens');
-        // Display new balance
-        const balance = await usdyContract.read.balanceOf([
-            await wallet.getAddress(),
-        ]);
-        console.log('New balance:', Number(balance) / 10 ** Number(decimals), 'USDY');
-    }
-    catch (error) {
-        console.error('Error minting USDY:', getErrorMessage(error));
-    }
-});
-program
-    .command('grant-role')
-    .description('Grant a role to an address')
-    .argument('<role>', 'Role to grant (e.g., MINTER_ROLE)')
-    .argument('<address>', 'Address to grant the role to')
-    .action(async (role, address) => {
-    try {
-        await initializeClients();
-        // Verify connection and contract
-        if (!(await verifyConnection())) {
-            return;
-        }
-        // Get USDY contract instance
-        const usdyContract = getShieldedContract({
-            address: USDY_ADDRESS,
-            abi: USDY_ABI,
+        const distributorContract = getShieldedContract({
+            address: DISTRIBUTOR_ADDRESS,
+            abi: [
+                {
+                    name: 'lastDistribution',
+                    type: 'function',
+                    stateMutability: 'view',
+                    inputs: [],
+                    outputs: [{ type: 'uint256' }],
+                },
+                {
+                    name: 'distributionPeriod',
+                    type: 'function',
+                    stateMutability: 'view',
+                    inputs: [],
+                    outputs: [{ type: 'uint256' }],
+                },
+                {
+                    name: 'getPendingDividends',
+                    type: 'function',
+                    stateMutability: 'view',
+                    inputs: [],
+                    outputs: [{ type: 'uint256' }],
+                },
+            ],
             client: shieldedWalletClient,
         });
-        // Get the caller's address
-        const callerAddress = await wallet.getAddress();
-        // Compute the role bytes32 values
-        const DEFAULT_ADMIN_ROLE = ethers.ZeroHash; // This is always 0x00
-        const MINTER_ROLE = ethers.keccak256(ethers.toUtf8Bytes('MINTER_ROLE'));
-        // Determine which role to grant
-        let roleBytes;
-        if (role === 'MINTER_ROLE') {
-            roleBytes = MINTER_ROLE;
-        }
-        else {
-            console.error('Unsupported role:', role);
+        if (!contract || !contract.read || !distributorContract || !distributorContract.read) {
+            console.log('Error: Failed to initialize contract interface');
             return;
         }
-        console.log('Granting role:', role);
-        console.log('Role bytes32:', roleBytes);
-        console.log('To address:', address);
-        console.log('From address (caller):', callerAddress);
-        // Grant the role
-        const hash = await usdyContract.write.grantRole([roleBytes, address], {
-            gas: 500000n, // Add explicit gas limit
-        });
-        console.log('Transaction hash:', hash);
-        console.log('Waiting for confirmation...');
-        const receipt = await basePublicClient.waitForTransactionReceipt({
-            hash,
-        });
-        if (receipt?.status === 'success') {
-            console.log(`Successfully granted ${role} to ${address}`);
+        const now = Math.floor(Date.now() / 1000);
+        try {
+            // Check join window end time
+            const windowEnd = await contract.read.joinWindowEnds();
+            if (now <= Number(windowEnd)) {
+                console.log('\nJoin window is still open');
+                console.log('Distributions will start after:', new Date(Number(windowEnd) * 1000).toLocaleString());
+                return;
+            }
+            // Get last distribution time and period
+            const lastDistribution = await distributorContract.read.lastDistribution();
+            const distributionPeriod = await distributorContract.read.distributionPeriod();
+            if (Number(lastDistribution) > 0) {
+                console.log('\nLast distribution:', new Date(Number(lastDistribution) * 1000).toLocaleString());
+                // Calculate next distribution
+                const nextDist = Number(lastDistribution) + Number(distributionPeriod);
+                const daysLeft = Math.ceil((nextDist - now) / (24 * 60 * 60));
+                console.log('\nNext distribution (estimated):');
+                console.log('Time:', new Date(nextDist * 1000).toLocaleString());
+                console.log(`Approximately ${daysLeft} days from now`);
+                // Show pending dividends
+                const pending = await distributorContract.read.getPendingDividends();
+                console.log('\nPending dividends:', ethers.formatUnits(pending, 18), 'USDY');
+            }
+            else {
+                console.log('\nNo distributions have occurred yet');
+                if (now > Number(windowEnd)) {
+                    console.log('First distribution should happen soon');
+                }
+            }
+            // Show member count
+            const count = await contract.read.memberCount();
+            console.log('\nCurrent member count:', Number(count));
         }
-        else {
-            console.log('Transaction failed');
+        catch (error) {
+            if (error.message.includes('Not a member')) {
+                console.log('\nYou are not a member of the pool');
+                console.log('Use the join command to become a member');
+            }
+            else {
+                throw error;
+            }
         }
     }
     catch (error) {
-        console.error('Error granting role:', getErrorMessage(error));
+        console.error('Error checking distribution status:', getErrorMessage(error));
     }
 });
 program.parse();

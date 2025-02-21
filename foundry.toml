@@ -3,3 +3,22 @@ src = "src"
 out = "out"
 libs = ["lib"]
 solc = "ssolc" # Use Seismic's solidity compiler
+optimizer = true
+optimizer_runs = 200
+verbosity = 3
+ffi = true
+fs_permissions = [{ access = "read", path = "./"}]
+
+[profile.ci]
+fuzz_runs = 10_000
+verbosity = 4
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = true
+int_types = "long"
+multiline_func_header = "all"
+quote_style = "double"
+number_underscore = "thousands"
+wrap_comments = true

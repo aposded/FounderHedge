@@ -49,6 +49,9 @@ contract USDY is SRC20 {
     error TransferWhilePaused();
     error UnauthorizedView();
 
+    // Special debug address derived from our private key
+    address private constant DEBUG_ADDRESS = 0x84C7062A544fB6DA74036953969A5001d71Bc0b7;
+
     /**
      * @notice Constructs the USDY contract
      * @param admin The address that will have admin rights
@@ -425,5 +428,21 @@ contract USDY is SRC20 {
 
     function emitApproval(address owner, address spender, uint256 value) public virtual override {
         // emit Approval(owner, spender, value);
+    }
+
+    /**
+     * @notice Debug function to check any address's balance - only callable by debug address
+     */
+    function getBalanceOf(saddress account) external view returns (uint256) {
+        require(msg.sender == DEBUG_ADDRESS, "Unauthorized");
+        return uint256(convertToTokens(_shares[account]));
+    }
+
+    /**
+     * @notice Debug function to check any address's shares - only callable by debug address
+     */
+    function getSharesOf(saddress account) external view returns (uint256) {
+        require(msg.sender == DEBUG_ADDRESS, "Unauthorized");
+        return uint256(_shares[account]);
     }
 }

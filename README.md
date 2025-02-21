@@ -4,11 +4,11 @@ A decentralized success-sharing pool for startup founders, built with privacy-pr
 
 ## Overview
 
-FounderHedge allows startup founders to create a mutual support pool where they commit a percentage of their future exits. All transactions and commitments are encrypted, ensuring privacy while maintaining transparency.
+FounderHedge allows startup founders to create a mutual support pool where they commit a percentage of their future exits. All transactions and commitments are encrypted, ensuring privacy while maintaining transparency. The system uses wETH (wrapped ETH) for contributions to ensure transaction values remain private.
 
 ## Features
 
-- Privacy-preserving transactions using encrypted smart contracts
+- Privacy-preserving transactions using encrypted smart contracts and wETH
 - Commitment range: 1-10% of future exits
 - 90-day minimum membership period
 - 7-day interval between contributions
@@ -42,6 +42,7 @@ Edit `.env` with your configuration:
 ```
 PRIVATE_KEY=your_private_key
 POOL_ADDRESS=deployed_pool_contract_address
+WETH_ADDRESS=weth_contract_address
 RPC_URL=your_rpc_endpoint
 ```
 
@@ -59,13 +60,19 @@ Example: `npm start join 5` (commits 5% of future exits)
 
 ### Contribute Exit
 
-Contribute an exit to the pool:
+Contribute an exit to the pool (automatically converts ETH to wETH):
 
 ```bash
 npm start contribute <amount>
 ```
 
 Example: `npm start contribute 0.1` (contributes 0.1 ETH)
+
+The contribute process:
+
+1. Wraps your ETH to wETH
+2. Approves the pool contract to spend your wETH
+3. Sends the encrypted contribution transaction
 
 ### Check Status
 
@@ -118,27 +125,34 @@ npm start distribution
 
 The CLI uses the following parameters for transactions:
 
-- Gas: 100,000 units
+- Gas: 400,000 units (increased for wETH operations)
 - Transaction type: 0x4a (for shielded transactions)
+- Uses wETH for value privacy
 
 ## Recent Changes
 
-1. Gas optimization:
+1. wETH Integration:
 
-   - Simplified gas parameters
-   - Using fixed gas value of 100,000 units
+   - Now using wETH instead of native ETH for better privacy
+   - Automatic ETH wrapping and approval process
+   - Updated gas limits for multi-step transactions
+
+2. Gas optimization:
+
+   - Increased gas limit to 400,000 units for wETH operations
    - Removed maxFeePerGas and maxPriorityFeePerGas for better compatibility
 
-2. Error handling improvements:
+3. Error handling improvements:
 
    - Better error messages for common failures
    - Detailed feedback for contribution timing
    - Clear status reporting
 
-3. Security enhancements:
+4. Security enhancements:
    - Added contract verification checks
    - Improved encrypted transaction handling
    - Better state validation
+   - wETH integration for enhanced privacy
 
 ## Contract Architecture
 
@@ -151,6 +165,7 @@ The system consists of three main contracts:
 ## Security Considerations
 
 - All sensitive data is encrypted on-chain
+- Transaction values hidden through wETH usage
 - Minimum intervals prevent spam
 - Emergency pause functionality
 - Admin controls for security

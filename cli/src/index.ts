@@ -19,6 +19,7 @@ const program = new Command();
 // Contract addresses
 const POOL_ADDRESS = process.env.POOL_ADDRESS;
 const RPC_URL = process.env.RPC_URL;
+const WETH_ADDRESS = process.env.WETH_ADDRESS;
 
 // Validate environment
 if (!POOL_ADDRESS) {
@@ -33,6 +34,11 @@ if (!RPC_URL) {
 
 if (!process.env.PRIVATE_KEY) {
   console.error('Error: PRIVATE_KEY not set in environment');
+  process.exit(1);
+}
+
+if (!WETH_ADDRESS) {
+  console.error('Error: WETH_ADDRESS not set in environment');
   process.exit(1);
 }
 
@@ -192,6 +198,27 @@ async function getLastContributionTime(address: string): Promise<number> {
   }
 }
 
+// Add WETH ABI
+const WETH_ABI = [
+  {
+    name: 'deposit',
+    type: 'function',
+    stateMutability: 'payable',
+    inputs: [],
+    outputs: [],
+  },
+  {
+    name: 'approve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ type: 'bool' }],
+  },
+];
+
 program
   .name('founder-hedge')
   .description('CLI to interact with FounderHedge contracts')
@@ -235,7 +262,7 @@ program
       }
 
       console.log('Sending encrypted join transaction...');
-      const { hash } = await contract.write.joinPool([BigInt(percentage)]);
+      const hash = await contract.write.joinPool([BigInt(percentage)]);
 
       if (!hash) {
         console.log('Error: Transaction failed - no hash returned');
@@ -440,7 +467,7 @@ program
 
 program
   .command('contribute')
-  .description('Contribute an exit to the pool')
+  .description('Contribute an exit to the pool using wETH')
   .argument('<amount>', 'Amount in ETH (e.g., 1.5 for 1.5 ETH)')
   .action(async (amount) => {
     try {
@@ -451,50 +478,44 @@ program
         return;
       }
 
-      const amountWei = ethers.parseEther(amount);
-      console.log('Contributing amount:', amount, 'ETH');
+      // First wrap ETH to wETH
+      console.log('Wrapping ETH to wETH...');
+      const wethContract = new ethers.Contract(WETH_ADDRESS!, WETH_ABI, wallet);
 
-      // Get shielded contract instance
-      const contract = getShieldedContract({
+      // Deposit ETH to get wETH
+      const amountWei = ethers.parseEther(amount);
+      const depositTx = await wethContract.deposit({ value: amountWei });
+      await depositTx.wait();
+      console.log('Successfully wrapped ETH to wETH');
+
+      // Approve pool contract to spend wETH - use max amount to hide actual value
+      console.log('Approving pool contract to spend wETH...');
+      const MAX_APPROVAL = ethers.parseEther('1000000'); // 1M ETH
+      const approveTx = await wethContract.approve(POOL_ADDRESS, MAX_APPROVAL);
+      await approveTx.wait();
+      console.log('Successfully approved wETH spend');
+
+      // Get shielded pool contract instance
+      const poolContract = getShieldedContract({
         address: POOL_ADDRESS as `0x${string}`,
         abi: [
           {
             name: 'contributeExit',
             type: 'function',
-            stateMutability: 'payable',
-            inputs: [{ name: 'exitValue', type: 'suint256' }],
+            stateMutability: 'nonpayable',
+            inputs: [{ name: 'contribution', type: 'suint256' }],
             outputs: [],
-          },
-          {
-            name: 'getCommitmentPercentage',
-            type: 'function',
-            stateMutability: 'view',
-            inputs: [],
-            outputs: [{ type: 'uint256' }],
           },
         ],
         client: shieldedWalletClient,
       });
 
-      if (!contract || !contract.write || !contract.write.contributeExit) {
-        console.log('Error: Failed to initialize contract interface');
-        return;
-      }
-
-      // Get commitment percentage
-      const commitmentPercentage =
-        await contract.read.getCommitmentPercentage();
-      console.log('Commitment percentage:', commitmentPercentage, '%');
-
-      // Calculate exit value
-      const exitValue =
-        (amountWei * BigInt(100)) / BigInt(commitmentPercentage);
-      console.log('Exit value:', ethers.formatEther(exitValue), 'ETH');
-
-      // Check if exit value is within limits
-      const MAX_EXIT_VALUE = ethers.parseEther('1000000'); // 1M ETH
-      if (exitValue > MAX_EXIT_VALUE) {
-        console.log('Error: Exit value too large (max is 1M ETH)');
+      if (
+        !poolContract ||
+        !poolContract.write ||
+        !poolContract.write.contributeExit
+      ) {
+        console.log('Error: Failed to initialize pool contract interface');
         return;
       }
 
@@ -520,10 +541,10 @@ program
         return;
       }
 
-      // Send transaction
-      console.log('Sending encrypted transaction...');
-      const hash = await contract.write.contributeExit([exitValue], {
-        gas: 100000n,
+      // Send transaction - let contract handle all encrypted calculations
+      console.log('Sending contribution (all values will be encrypted)...');
+      const hash = await poolContract.write.contributeExit([amountWei], {
+        gas: 400000n,
       });
 
       if (!hash) {
@@ -541,8 +562,9 @@ program
 
       if (receipt?.status === 'success') {
         console.log('\nContribution successful!');
-        console.log('Amount:', amount, 'ETH');
-        console.log('Exit value:', ethers.formatEther(exitValue), 'ETH');
+        console.log(
+          'All calculations and values are encrypted in the contract'
+        );
       } else {
         console.log('Transaction failed');
       }

@@ -5,11 +5,15 @@ import {Test, console} from "forge-std/Test.sol";
 import {SuccessPool} from "../src/SuccessPool.sol";
 import {ExitContribution} from "../src/ExitContribution.sol";
 import {DividendDistributor} from "../src/DividendDistributor.sol";
+import {WETH} from "../src/WETH.sol";
 
 contract SuccessPoolTest is Test {
     SuccessPool public pool;
     ExitContribution public exitContribution;
     DividendDistributor public dividendDistributor;
+    WETH public weth;
+    address public alice;
+    address public bob;
 
     address public founder1 = address(0x1);
     address public founder2 = address(0x2);
@@ -29,24 +33,29 @@ contract SuccessPoolTest is Test {
     event JoinWindowClosed();
 
     function setUp() public {
-        // Deploy all contracts
+        // Deploy contracts
         exitContribution = new ExitContribution();
-        admin = address(this);
+        weth = new WETH();
         
-        // Deploy pool first since it will be the authorized contract
+        // Deploy SuccessPool with temporary DividendDistributor address
         pool = new SuccessPool(
             address(exitContribution),
-            address(0) // Temporary address for DividendDistributor
+            address(0), // Temporary DividendDistributor address
+            address(weth)
         );
         
-        // Deploy DividendDistributor with pool's address
+        // Deploy DividendDistributor with pool address
         dividendDistributor = new DividendDistributor(address(pool));
         
-        // Update pool's DividendDistributor reference
+        // Set up contract references
         pool.setDividendDistributor(address(dividendDistributor));
-
-        // Set pool contract in ExitContribution
         exitContribution.setPoolContract(address(pool));
+
+        // Set up test accounts
+        alice = makeAddr("alice");
+        bob = makeAddr("bob");
+        vm.deal(alice, 100 ether);
+        vm.deal(bob, 100 ether);
 
         // Label addresses for better trace output
         vm.label(founder1, "Founder1");

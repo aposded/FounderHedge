@@ -5,10 +5,13 @@ import {Test, console} from "forge-std/Test.sol";
 import {ExitContribution} from "../src/ExitContribution.sol";
 import {SuccessPool} from "../src/SuccessPool.sol";
 import {DividendDistributor} from "../src/DividendDistributor.sol";
+import {WETH} from "../src/WETH.sol";
 
 contract ExitContributionTest is Test {
     ExitContribution public exitContribution;
     SuccessPool public successPool;
+    DividendDistributor public dividendDistributor;
+    WETH public weth;
     address public member1 = address(0x1);
     address public member2 = address(0x2);
     address public member3 = address(0x3);
@@ -23,22 +26,27 @@ contract ExitContributionTest is Test {
     event PoolContractUpdated(address indexed newPool);
 
     function setUp() public {
-        // Deploy contracts in correct order
+        // Deploy contracts
         exitContribution = new ExitContribution();
+        weth = new WETH();
         
-        // Deploy mock contracts for dependencies
-        DividendDistributor mockDividendDistributor = new DividendDistributor(address(this));
-        
-        // Deploy SuccessPool with dependencies
+        // Deploy SuccessPool with temporary DividendDistributor address
         successPool = new SuccessPool(
             address(exitContribution),
-            address(mockDividendDistributor)
+            address(0), // Temporary DividendDistributor address
+            address(weth)
         );
-
-        // Set pool contract in ExitContribution
-        exitContribution.setPoolContract(address(successPool));
         
+        // Deploy DividendDistributor with pool address
+        dividendDistributor = new DividendDistributor(address(successPool));
+        
+        // Set up contract references
+        successPool.setDividendDistributor(address(dividendDistributor));
+        exitContribution.setPoolContract(address(successPool));
+
+        // Set up test accounts
         admin = address(this);
+        vm.deal(admin, 100 ether);
 
         vm.label(member1, "Member1");
         vm.label(member2, "Member2");

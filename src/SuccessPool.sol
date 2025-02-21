@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "./ExitContribution.sol";
 import "./DividendDistributor.sol";
+import "./interfaces/IWETH.sol";
 
 /**
  * @title SuccessPool
@@ -27,13 +28,14 @@ contract SuccessPool {
     uint256 public constant MIN_CONTRIBUTION_INTERVAL = 7 days; // Minimum time between contributions
     uint256 public memberCount;                                // Number of active members
     
-    // Emergency controls
-    bool public paused;
-    address public admin;
-    
     // Contract references
     ExitContribution public exitContribution;
     DividendDistributor public dividendDistributor;
+    IWETH public immutable WETH;
+    
+    // Emergency controls
+    bool public paused;
+    address public admin;
     
     // Events
     event MemberJoined(address indexed member);
@@ -50,15 +52,19 @@ contract SuccessPool {
     error Unauthorized();
     error MinMembershipPeriodNotMet();
     error ContributionTooFrequent();
+    error TransferFailed();
     
     constructor(
         address _exitContribution,
-        address _dividendDistributor
+        address _dividendDistributor,
+        address _weth
     ) {
         require(_exitContribution != address(0), "Invalid exit contribution address");
+        require(_weth != address(0), "Invalid WETH address");
         
         exitContribution = ExitContribution(_exitContribution);
         dividendDistributor = DividendDistributor(_dividendDistributor);
+        WETH = IWETH(_weth);
         admin = msg.sender;
     }
     
@@ -112,7 +118,7 @@ contract SuccessPool {
      * @dev Join the success pool with a committed percentage
      * @param commitmentPercentage The percentage of future exits to commit (encrypted)
      */
-    function joinPool(suint256 commitmentPercentage) external payable {
+    function joinPool(suint256 commitmentPercentage) external {
         require(!bool(isActiveMember[msg.sender]), "Already a member");
         require(uint256(commitmentPercentage) >= MIN_COMMITMENT_PERCENTAGE && 
                 uint256(commitmentPercentage) <= MAX_COMMITMENT_PERCENTAGE, 
@@ -131,20 +137,27 @@ contract SuccessPool {
     }
     
     /**
-     * @dev Submit an exit contribution to the pool
-     * @param exitValue The encrypted exit value
+     * @dev Submit an exit contribution to the pool using wETH
+     * @param contribution The contribution amount in wETH
      */
-    function contributeExit(suint256 exitValue) external payable whenNotPaused {
+    function contributeExit(suint256 contribution) external whenNotPaused {
         require(bool(isActiveMember[msg.sender]), "Not a member");
+        
+        // Calculate exit value from contribution and commitment percentage
+        suint256 exitValue = contribution * suint256(100) / commitmentPercentages[msg.sender];
         require(uint256(exitValue) <= MAX_EXIT_VALUE, "Exit value too large");
         
-        suint256 contribution = exitValue * commitmentPercentages[msg.sender] / suint256(100);
+        // Process contribution and distribute dividends first
+        exitContribution.processContribution(msg.sender, contribution);
+        dividendDistributor.distributeDividends(msg.sender, contribution, memberCount);
+        
+        // Update state after successful processing
         totalContributed[msg.sender] += contribution;
         totalPoolValue += contribution;
         
-        // Process contribution and distribute dividends
-        exitContribution.processContribution(msg.sender, contribution);
-        dividendDistributor.distributeDividends(msg.sender, contribution, memberCount);
+        // Transfer wETH from sender to this contract
+        bool success = WETH.transferFrom(msg.sender, address(this), uint256(contribution));
+        if (!success) revert TransferFailed();
         
         emit ContributionReceived(msg.sender);
         emit DividendsDistributed();

@@ -34,13 +34,13 @@ contract USDY is SRC20 {
     bool private _paused;
 
     // Events
-    event RewardMultiplierUpdated(uint256 newMultiplier);
-    event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender);
-    event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender);
-    event Paused(address account);
-    event Unpaused(address account);
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
+    // event RewardMultiplierUpdated(uint256 newMultiplier);
+    // event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender);
+    // event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender);
+    // event Paused(address account);
+    // event Unpaused(address account);
+    // event Transfer(address indexed from, address indexed to, uint256 value);
+    // event Approval(address indexed owner, address indexed spender, uint256 value);
 
     // Custom errors
     error InvalidRewardMultiplier(uint256 multiplier);
@@ -190,7 +190,7 @@ contract USDY is SRC20 {
     function _grantRole(bytes32 role, address account) internal {
         if (!hasRole(role, account)) {
             _roles[role][account] = true;
-            emit RoleGranted(role, account, _msgSender());
+            // emit RoleGranted(role, account, _msgSender());
         }
     }
 
@@ -200,7 +200,7 @@ contract USDY is SRC20 {
     function _revokeRole(bytes32 role, address account) internal {
         if (hasRole(role, account)) {
             _roles[role][account] = false;
-            emit RoleRevoked(role, account, _msgSender());
+            // emit RoleRevoked(role, account, _msgSender());
         }
     }
 
@@ -224,7 +224,7 @@ contract USDY is SRC20 {
         }
         
         rewardMultiplier = suint256(newMultiplierValue);
-        emit RewardMultiplierUpdated(newMultiplierValue);
+        // emit RewardMultiplierUpdated(newMultiplierValue);
     }
 
     /**
@@ -251,7 +251,7 @@ contract USDY is SRC20 {
     function pause() external onlyRole(PAUSE_ROLE) {
         if (_paused) revert TransferWhilePaused();
         _paused = true;
-        emit Paused(_msgSender());
+        // emit Paused(_msgSender());
     }
 
     /**
@@ -260,7 +260,7 @@ contract USDY is SRC20 {
     function unpause() external onlyRole(PAUSE_ROLE) {
         if (!_paused) revert TransferWhilePaused();
         _paused = false;
-        emit Unpaused(_msgSender());
+        // emit Unpaused(_msgSender());
     }
 
     /**
@@ -300,7 +300,7 @@ contract USDY is SRC20 {
             }
         }
 
-        emit Transfer(address(from), address(to), uint256(value));
+        // emit Transfer(address(from), address(to), uint256(value));
 
         _afterTokenTransfer(from, to, value);
     }
@@ -420,10 +420,10 @@ contract USDY is SRC20 {
 
     // Override the event emission functions to emit actual events
     function emitTransfer(address from, address to, uint256 value) public virtual override {
-        emit Transfer(from, to, value);
+        // emit Transfer(from, to, value);
     }
 
     function emitApproval(address owner, address spender, uint256 value) public virtual override {
-        emit Approval(owner, spender, value);
+        // emit Approval(owner, spender, value);
     }
 }

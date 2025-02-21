@@ -267,47 +267,88 @@ program
     .description('Leave the success pool')
     .action(async () => {
     try {
+        await initializeClients();
         // Verify connection and contract
         if (!(await verifyConnection()) || !(await verifyContract())) {
             return;
         }
-        // First check if join window is still open
-        const windowData = await provider.call({
-            to: POOL_ADDRESS,
-            data: `0x${SELECTORS.joinWindowEnds}`,
+        // Get shielded contract instance
+        const contract = getShieldedContract({
+            address: POOL_ADDRESS,
+            abi: [
+                {
+                    name: 'getMemberJoinTime',
+                    type: 'function',
+                    stateMutability: 'view',
+                    inputs: [],
+                    outputs: [{ type: 'uint256' }],
+                },
+                {
+                    name: 'leavePool',
+                    type: 'function',
+                    stateMutability: 'nonpayable',
+                    inputs: [],
+                    outputs: [],
+                },
+                {
+                    name: 'MIN_MEMBERSHIP_PERIOD',
+                    type: 'function',
+                    stateMutability: 'view',
+                    inputs: [],
+                    outputs: [{ type: 'uint256' }],
+                },
+            ],
+            client: shieldedWalletClient,
         });
-        const windowEnd = ethers.toNumber(windowData);
-        const now = Math.floor(Date.now() / 1000);
-        if (now <= windowEnd) {
-            console.log('Cannot leave while join window is still open');
-            console.log('Window ends:', new Date(windowEnd * 1000).toLocaleString());
+        if (!contract || !contract.read) {
+            console.log('Error: Failed to initialize contract interface');
             return;
         }
-        // Check minimum membership period (90 days after join window)
-        const minLeaveTime = windowEnd + 90 * 24 * 60 * 60; // 90 days in seconds
+        // Check minimum membership period
+        const joinTime = await contract.read.getMemberJoinTime();
+        const minPeriod = await contract.read.MIN_MEMBERSHIP_PERIOD();
+        const now = Math.floor(Date.now() / 1000);
+        const minLeaveTime = Number(joinTime) + Number(minPeriod);
         if (now < minLeaveTime) {
-            console.log('Minimum membership period not met');
-            console.log('You can leave after:', new Date(minLeaveTime * 1000).toLocaleString());
+            console.log('\nCannot leave pool yet:');
+            console.log('- You joined at:', new Date(Number(joinTime) * 1000).toLocaleString());
+            console.log('- Minimum membership period: 90 days');
+            console.log('- You can leave after:', new Date(minLeaveTime * 1000).toLocaleString());
             const daysLeft = Math.ceil((minLeaveTime - now) / (24 * 60 * 60));
-            console.log(`(approximately ${daysLeft} days from now)`);
+            console.log(`- Days remaining: ${daysLeft}`);
             return;
         }
         // Try to leave
         console.log('Sending leave transaction...');
-        const tx = await wallet.sendTransaction({
-            to: POOL_ADDRESS,
-            data: `0x${SELECTORS.leavePool}`,
+        const hash = await contract.write.leavePool();
+        if (!hash) {
+            console.log('Error: Transaction failed - no hash returned');
+            return;
+        }
+        console.log('Transaction hash:', hash);
+        console.log('Waiting for confirmation...');
+        // Wait for transaction confirmation
+        const receipt = await basePublicClient.waitForTransactionReceipt({
+            hash,
         });
-        console.log('Transaction hash:', tx.hash);
-        const receipt = await tx.wait();
-        if (receipt?.status === 1) {
-            console.log('Successfully left the pool!');
+        if (receipt?.status === 'success') {
+            console.log('\nSuccessfully left the pool!');
         }
         else {
             console.log('Transaction failed');
         }
     }
     catch (error) {
+        // Handle viem errors
+        if (error.message.includes('Details: revert:')) {
+            // Extract the revert reason after "Details: revert:"
+            const match = error.message.match(/Details: revert: (.*?)(?=\n|Version:|$)/);
+            if (match) {
+                console.log('Error:', match[1]);
+                return;
+            }
+        }
+        // Fallback to general error handling
         console.log('Error:', getErrorMessage(error));
     }
 });
@@ -383,19 +424,18 @@ program
     .description('Check join window status')
     .action(async () => {
     try {
-        const data = await provider.call({
-            to: POOL_ADDRESS,
-            data: `0x${SELECTORS.joinWindowEnds}`,
-        });
-        const windowEnd = ethers.toNumber(data);
-        const now = Math.floor(Date.now() / 1000);
-        console.log('Join window status:');
-        console.log('Current time:', new Date(now * 1000).toLocaleString());
-        console.log('Window ends:', new Date(windowEnd * 1000).toLocaleString());
-        console.log('Window is:', now > windowEnd ? 'CLOSED' : 'OPEN');
+        await initializeClients();
+        // Verify connection and contract
+        if (!(await verifyConnection()) || !(await verifyContract())) {
+            return;
+        }
+        console.log('\nJoin window status:');
+        console.log('Window information is private in this contract.');
+        console.log('To check if you can join, try using the join command directly.');
+        console.log('The contract will verify eligibility during the join process.');
     }
     catch (error) {
-        console.error('Error checking window:', error);
+        console.error('Error checking window:', getErrorMessage(error));
     }
 });
 program
@@ -496,7 +536,6 @@ program
     .description('Check when you can contribute next')
     .action(async () => {
     try {
-        // Initialize clients first
         await initializeClients();
         // Verify connection and contract
         if (!(await verifyConnection()) || !(await verifyContract())) {
@@ -504,12 +543,39 @@ program
         }
         const address = await wallet.getAddress();
         console.log('Checking contribution status for:', address);
-        // Check if member using shielded contract
-        const membershipContract = getShieldedContract({
+        // Get ExitContribution contract instance
+        const poolContract = getShieldedContract({
             address: POOL_ADDRESS,
             abi: [
                 {
-                    name: 'getCommitmentPercentage',
+                    name: 'exitContribution',
+                    type: 'function',
+                    stateMutability: 'view',
+                    inputs: [],
+                    outputs: [{ type: 'address' }],
+                },
+            ],
+            client: shieldedWalletClient,
+        });
+        if (!poolContract || !poolContract.read) {
+            console.log('Error: Failed to initialize pool contract interface');
+            return;
+        }
+        // Get ExitContribution contract address
+        const exitContributionAddress = await poolContract.read.exitContribution();
+        // Get ExitContribution contract instance
+        const contract = getShieldedContract({
+            address: exitContributionAddress,
+            abi: [
+                {
+                    name: 'getLastProcessTime',
+                    type: 'function',
+                    stateMutability: 'view',
+                    inputs: [],
+                    outputs: [{ type: 'uint256' }],
+                },
+                {
+                    name: 'getTotalProcessedValue',
                     type: 'function',
                     stateMutability: 'view',
                     inputs: [],
@@ -518,27 +584,24 @@ program
             ],
             client: shieldedWalletClient,
         });
-        try {
-            await membershipContract.read.getCommitmentPercentage();
+        if (!contract || !contract.read) {
+            console.log('Error: Failed to initialize ExitContribution contract interface');
+            return;
         }
-        catch (error) {
-            if (error.message.includes('Not a member')) {
-                console.log('You are not a member of the pool');
-                return;
-            }
-            throw error;
-        }
-        // Get last contribution time
-        const lastContribution = await getLastContributionTime(address);
-        const now = Math.floor(Date.now() / 1000);
-        if (lastContribution === 0) {
+        // Check if member has any processed contributions
+        const totalProcessed = await contract.read.getTotalProcessedValue();
+        if (Number(totalProcessed) === 0) {
             console.log('You have not made any contributions yet');
             console.log('You can contribute now!');
             return;
         }
-        const nextContributionTime = lastContribution + 7 * 24 * 60 * 60; // 7 days
-        if (now < nextContributionTime) {
+        // Get last process time
+        const lastProcessTime = await contract.read.getLastProcessTime();
+        const now = Math.floor(Date.now() / 1000);
+        const MIN_CONTRIBUTION_INTERVAL = 7 * 24 * 60 * 60; // 7 days in seconds
+        if (now < Number(lastProcessTime) + MIN_CONTRIBUTION_INTERVAL) {
             console.log('You need to wait before your next contribution');
+            const nextContributionTime = Number(lastProcessTime) + MIN_CONTRIBUTION_INTERVAL;
             console.log('Next contribution possible after:', new Date(nextContributionTime * 1000).toLocaleString());
             const daysLeft = Math.ceil((nextContributionTime - now) / (24 * 60 * 60));
             console.log(`(approximately ${daysLeft} days from now)`);

@@ -4,6 +4,24 @@
 
 FounderHedge is a revolutionary platform that enables startup founders to create mutual support networks while maintaining privacy around their commitments and contributions. By leveraging encrypted smart contracts, founders can participate in a success-sharing pool where their commitment percentages and exit valuations remain confidential.
 
+### What is a Success Pool?
+
+A success pool is a collaborative financial arrangement where startup founders commit to sharing a small percentage of their future exit proceeds (like acquisitions or IPOs) with other pool members. Think of it as founders helping founders:
+
+- When you join, you commit to sharing a small percentage (1-10%) of any future exit
+- If your startup has a successful exit, you contribute that percentage to the pool
+- The contributed amount is then distributed among all pool members
+- In return, you receive a share of other members' exit contributions when they succeed
+
+This creates a supportive ecosystem where:
+
+- Early exits help fund founders still building
+- Larger exits provide bigger distributions to the community
+- Everyone has aligned incentives for mutual success
+- Risk is shared across multiple ventures
+
+For example, if ten founders each commit 5% and one has a $10M exit, they would contribute $500K to the pool, which gets distributed among all members. This way, successful exits help sustain the broader founder community while they work toward their own exits.
+
 ## Why FounderHedge?
 
 ### The Founder's Dilemma

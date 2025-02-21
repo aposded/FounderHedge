@@ -212,10 +212,27 @@ const WETH_ABI = [
     type: 'function',
     stateMutability: 'nonpayable',
     inputs: [
-      { name: 'spender', type: 'address' },
-      { name: 'amount', type: 'uint256' },
+      { name: 'spender', type: 'saddress' },
+      { name: 'amount', type: 'suint256' },
     ],
     outputs: [{ type: 'bool' }],
+  },
+  {
+    name: 'transfer',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'saddress' },
+      { name: 'amount', type: 'suint256' },
+    ],
+    outputs: [{ type: 'bool' }],
+  },
+  {
+    name: 'balanceOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'owner', type: 'saddress' }],
+    outputs: [{ type: 'uint256' }],
   },
 ];
 
@@ -531,19 +548,26 @@ program
 
       // First wrap ETH to wETH
       console.log('Wrapping ETH to wETH...');
-      const wethContract = new ethers.Contract(WETH_ADDRESS!, WETH_ABI, wallet);
+      const wethContract = getShieldedContract({
+        address: WETH_ADDRESS as `0x${string}`,
+        abi: WETH_ABI,
+        client: shieldedWalletClient,
+      });
 
       // Deposit ETH to get wETH
       const amountWei = ethers.parseEther(amount);
-      const depositTx = await wethContract.deposit({ value: amountWei });
-      await depositTx.wait();
+      const depositTx = await wethContract.write.deposit({ value: amountWei });
+      await basePublicClient.waitForTransactionReceipt({ hash: depositTx });
       console.log('Successfully wrapped ETH to wETH');
 
       // Approve pool contract to spend wETH - use max amount to hide actual value
       console.log('Approving pool contract to spend wETH...');
       const MAX_APPROVAL = ethers.parseEther('1000000'); // 1M ETH
-      const approveTx = await wethContract.approve(POOL_ADDRESS, MAX_APPROVAL);
-      await approveTx.wait();
+      const approveTx = await wethContract.write.approve([
+        POOL_ADDRESS as `0x${string}`,
+        MAX_APPROVAL,
+      ]);
+      await basePublicClient.waitForTransactionReceipt({ hash: approveTx });
       console.log('Successfully approved wETH spend');
 
       // Get shielded pool contract instance
